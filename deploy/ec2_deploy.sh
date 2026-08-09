@@ -9,8 +9,10 @@ echo "=== [AegisSilicon] Starting AWS EC2 Deployment Setup ==="
 
 # 1. Update system packages & install Docker
 echo "[1/4] Installing Docker & Docker Compose..."
+sudo dpkg -i --force-overwrite /var/cache/apt/archives/docker-compose-v2*.deb 2>/dev/null || true
+sudo apt-get -f install -y -o Dpkg::Options::="--force-overwrite" || true
 sudo apt-get update -y
-sudo apt-get install -y -o Dpkg::Options::="--force-overwrite" docker.io docker-compose-plugin awscli git || sudo apt-get install -y docker.io awscli git
+sudo apt-get install -y -o Dpkg::Options::="--force-overwrite" docker.io awscli git || true
 
 sudo systemctl enable docker
 sudo systemctl start docker
