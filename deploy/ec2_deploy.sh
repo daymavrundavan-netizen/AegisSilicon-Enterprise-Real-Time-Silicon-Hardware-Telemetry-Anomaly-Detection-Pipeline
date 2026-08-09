@@ -32,6 +32,8 @@ fi
 
 # 3. Build & Launch AegisSilicon Container Stack
 echo "[3/4] Building and launching Docker Compose production stack..."
+sudo fuser -k 9092/tcp 8000/tcp 8501/tcp 2>/dev/null || true
+docker stop $(docker ps -aq) 2>/dev/null || true
 docker compose -f deploy/docker-compose.yml down --remove-orphans 2>/dev/null || true
 docker compose -f deploy/docker-compose.yml up -d --build
 
