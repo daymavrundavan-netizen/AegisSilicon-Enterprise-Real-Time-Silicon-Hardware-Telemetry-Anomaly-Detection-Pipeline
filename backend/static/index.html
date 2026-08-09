@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aegis Silicon | Fortune 500 Enterprise AI Infrastructure Platform</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; overflow-x: hidden; transition: background-color 0.3s ease, color 0.3s ease; }
+    .font-mono-code { font-family: 'Fira Code', monospace; }
+
+    /* Theme 1: Midnight (Default) */
+    body.theme-midnight { background-color: #000000; color: #ffffff; }
+    .theme-midnight .glass-panel { background: rgba(12, 12, 12, 0.95); border: 1px solid rgba(255, 255, 255, 0.15); backdrop-filter: blur(16px); }
+
+    /* Theme 2: Aurora */
+    body.theme-aurora { background-color: #0a0e27; color: #f0fdfa; }
+    .theme-aurora .glass-panel { background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(20, 184, 166, 0.3); }
+
+    /* Theme 3: Cyberpunk */
+    body.theme-cyberpunk { background-color: #030712; color: #f3f4f6; }
+    .theme-cyberpunk .glass-panel { background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(6, 182, 212, 0.2); }
+
+    /* Theme 4: Emerald */
+    body.theme-emerald { background-color: #022c22; color: #ecfdf5; }
+    .theme-emerald .glass-panel { background: rgba(6, 78, 59, 0.75); border: 1px solid rgba(16, 185, 129, 0.3); }
+
+    /* Theme 5: Sunset */
+    body.theme-sunset { background-color: #1a0c1a; color: #fff5f5; }
+    .theme-sunset .glass-panel { background: rgba(45, 15, 45, 0.85); border: 1px solid rgba(249, 115, 22, 0.3); }
+
+    /* Theme 6: Graphite */
+    body.theme-graphite { background-color: #111827; color: #f9fafb; }
+    .theme-graphite .glass-panel { background: rgba(31, 41, 55, 0.85); border: 1px solid rgba(156, 163, 175, 0.2); }
+
+    /* Theme 7: Arctic */
+    body.theme-arctic { background-color: #f8fafc; color: #0f172a; }
+    .theme-arctic .glass-panel { background: rgba(255, 255, 255, 0.95); border: 1px solid rgba(226, 232, 240, 0.9); box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+
+    /* Theme 8: Crimson */
+    body.theme-crimson { background-color: #27070b; color: #fff1f2; }
+    .theme-crimson .glass-panel { background: rgba(76, 5, 25, 0.8); border: 1px solid rgba(244, 63, 94, 0.3); }
+
+    /* Theme 9: Purple Matrix */
+    body.theme-purple { background-color: #10072b; color: #faf5ff; }
+    .theme-purple .glass-panel { background: rgba(36, 17, 78, 0.85); border: 1px solid rgba(217, 70, 239, 0.3); }
+
+    /* Theme 10: Enterprise Dark */
+    body.theme-dark { background-color: #090d16; color: #f1f5f9; }
+    .theme-dark .glass-panel { background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(30, 41, 59, 0.8); }
+
+    /* Theme 11: Enterprise Light */
+    body.theme-light { background-color: #f1f5f9; color: #1e293b; }
+    .theme-light .glass-panel { background: rgba(255, 255, 255, 0.95); border: 1px solid #cbd5e1; box-shadow: 0 4px 16px rgba(0,0,0,0.04); }
+
+    .glow-cyan { box-shadow: 0 0 25px rgba(6, 182, 212, 0.3); }
+    .glow-red { box-shadow: 0 0 30px rgba(239, 68, 68, 0.4); }
+    .pulse-red { animation: pulse-red-anim 1.6s infinite; }
+    @keyframes pulse-red-anim {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+      70% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+
+    .gauge-circle { transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+  </style>
+</head>
+<body class="theme-midnight min-h-screen flex flex-col">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // SVG Radial Donut Gauge Component
+    function RadialGauge({ score }) {
+      const radius = 36;
+      const circumference = 2 * Math.PI * radius;
+      const progress = Math.max(0, Math.min(100, score || 100));
+      const strokeDashoffset = circumference - (progress / 100) * circumference;
+      
+      let strokeColor = "#10b981"; 
+      if (progress < 80 && progress >= 50) strokeColor = "#f59e0b"; 
+      if (progress < 50) strokeColor = "#ef4444"; 
+
+      return (
+        <div className="relative flex items-center justify-center w-24 h-24">
+          <svg className="w-full h-full transform -rotate-90" viewBox="0 0 90 90">
+            <circle cx="45" cy="45" r={radius} stroke="rgba(255,255,255,0.1)" strokeWidth="8" fill="transparent" />
+            <circle 
+              cx="45" 
+              cy="45" 
+              r={radius} 
+              stroke={strokeColor} 
+              strokeWidth="8" 
+              fill="transparent" 
+              strokeDasharray={circumference} 
+              strokeDashoffset={strokeDashoffset} 
+              strokeLinecap="round"
+              className="gauge-circle"
+            />
+          </svg>
+          <div className="absolute flex flex-col items-center justify-center text-center">
+            <span className="text-xl font-black font-mono-code">{progress}%</span>
+            <span className="text-[9px] opacity-70 font-mono-code uppercase">HEALTH</span>
+          </div>
+        </div>
+      );
+    }
+
+    // Mini Sparkline Component
+    function MiniSparkline({ data, color = "#06b6d4", height = 26 }) {
+      if (!data || data.length === 0) return null;
+      const max = Math.max(...data, 1e-6);
+      const min = Math.min(...data, 0);
+      const range = max - min || 1;
+      const points = data.map((val, idx) => {
+        const x = (idx / (data.length - 1)) * 100;
+        const y = height - ((val - min) / range) * (height - 4);
+        return `${x},${y}`;
+      }).join(' ');
+
+      return (
+        <svg className="w-full" height={height} viewBox={`0 0 100 ${height}`}>
+          <polyline fill="none" stroke={color} strokeWidth="1.8" points={points} strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    }
+
+    function App() {
+      const [activeTab, setActiveTab] = useState('overview'); // overview, ops, infra, models, services, incidents, storage
+      const [theme, setTheme] = useState('midnight'); 
+      const [summary, setSummary] = useState(null);
+      const [nodes, setNodes] = useState([]);
+      const [history, setHistory] = useState([]);
+      const [incidents, setIncidents] = useState([]);
+      const [aiModels, setAiModels] = useState([]);
+      const [aiServices, setAiServices] = useState([]);
+      const [auditLogs, setAuditLogs] = useState([]);
+      const [s3Archives, setS3Archives] = useState([]);
+      const [selectedNode, setSelectedNode] = useState(null);
+      const [selectedReport, setSelectedReport] = useState(null);
+      const [targetInjectNode, setTargetInjectNode] = useState('gpu-node-002');
+      const [chartMetric, setChartMetric] = useState('error');
+      const [isConnected, setIsConnected] = useState(false);
+      const [toastMsg, setToastMsg] = useState(null);
+      const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
+
+      // Chatbot Assistant State
+      const [chatOpen, setChatOpen] = useState(false);
+      const [chatMessages, setChatMessages] = useState([
+        { sender: 'bot', text: '👋 Hello! I am Aegis AI Operations Copilot. How can I assist you with your AI infrastructure monitoring today?' }
+      ]);
+      const [chatInput, setChatInput] = useState('');
+      const [chatLoading, setChatLoading] = useState(false);
+
+      const chartRef = useRef(null);
+      const chartInstance = useRef(null);
+
+      const API_BASE = window.location.origin;
+      const WS_URL = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host + '/ws/telemetry';
+
+      useEffect(() => {
+        document.body.className = `theme-${theme} min-h-screen flex flex-col`;
+      }, [theme]);
+
+      // Command Palette (⌘K / Ctrl+K) Shortcut Handler
+      useEffect(() => {
+        const handleKeyDown = (e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+            e.preventDefault();
+            setCmdPaletteOpen(prev => !prev);
+          }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+      }, []);
+
+      const showToast = (msg) => {
+        setToastMsg(msg);
+        setTimeout(() => setToastMsg(null), 4000);
+      };
+
+      const fetchData = async () => {
+        try {
+          const [sRes, nRes, hRes, iRes, mRes, servRes, logRes, s3Res] = await Promise.all([
+            fetch(API_BASE + '/api/v1/overview'),
+            fetch(API_BASE + '/api/v1/nodes'),
+            fetch(API_BASE + '/api/telemetry/history?limit=40'),
+            fetch(API_BASE + '/api/v1/incidents?limit=25'),
+            fetch(API_BASE + '/api/v1/models'),
+            fetch(API_BASE + '/api/v1/services'),
+            fetch(API_BASE + '/api/agent/audit-log'),
+            fetch(API_BASE + '/api/v1/storage')
+          ]);
+          if (sRes.ok) setSummary(await sRes.json());
+          if (nRes.ok) setNodes(await nRes.json());
+          if (hRes.ok) setHistory(await hRes.json());
+          if (iRes.ok) setIncidents(await iRes.json());
+          if (mRes.ok) setAiModels(await mRes.json());
+          if (servRes.ok) setAiServices(await servRes.json());
+          if (logRes.ok) setAuditLogs(await logRes.json());
+          if (s3Res.ok) setS3Archives(await s3Res.json());
+        } catch (e) {}
+      };
+
+      useEffect(() => {
+        fetchData();
+        const interval = setInterval(fetchData, 1500);
+
+        let ws;
+        try {
+          ws = new WebSocket(WS_URL);
+          ws.onopen = () => setIsConnected(true);
+          ws.onclose = () => setIsConnected(false);
+          ws.onmessage = () => fetchData();
+        } catch (e) {}
+
+        return () => {
+          clearInterval(interval);
+          if (ws) ws.close();
+        };
+      }, []);
+
+      // Streaming Chart Effect
+      useEffect(() => {
+        if ((activeTab !== 'overview' && activeTab !== 'infra') || !chartRef.current || history.length === 0) return;
+
+        const labels = history.map(h => new Date(h.timestamp * 1000).toLocaleTimeString([], { hour12: false, minute: '2-digit', second: '2-digit' }));
+        
+        let datasetLabel = 'FP32 Relative Error';
+        let datasetData = history.map(h => Math.max(1e-8, h.relative_error || 1e-8));
+        let borderColor = '#06b6d4';
+        let bgColor = 'rgba(6, 182, 212, 0.12)';
+        let isLog = true;
+
+        if (chartMetric === 'temp') {
+          datasetLabel = 'Temperature (°C)';
+          datasetData = history.map(h => h.temperature_c || 62.0);
+          borderColor = '#f59e0b';
+          bgColor = 'rgba(245, 158, 11, 0.12)';
+          isLog = false;
+        } else if (chartMetric === 'voltage') {
+          datasetLabel = 'Power Voltage (V)';
+          datasetData = history.map(h => h.voltage_v || 1.15);
+          borderColor = '#3b82f6';
+          bgColor = 'rgba(59, 130, 246, 0.12)';
+          isLog = false;
+        }
+
+        if (!chartInstance.current) {
+          const ctx = chartRef.current.getContext('2d');
+          chartInstance.current = new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels: labels,
+              datasets: [{
+                label: datasetLabel,
+                data: datasetData,
+                borderColor: borderColor,
+                backgroundColor: bgColor,
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3,
+                pointRadius: 1
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              animation: false,
+              scales: {
+                y: {
+                  type: isLog ? 'logarithmic' : 'linear',
+                  min: isLog ? 1e-8 : undefined,
+                  grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                  ticks: { color: '#94a3b8', font: { family: 'Fira Code' } }
+                },
+                x: {
+                  grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                  ticks: { color: '#94a3b8', maxTicksLimit: 10, font: { family: 'Fira Code' } }
+                }
+              },
+              plugins: { legend: { labels: { color: '#cbd5e1', font: { family: 'Fira Code' } } } }
+            }
+          });
+        } else {
+          chartInstance.current.data.labels = labels;
+          chartInstance.current.data.datasets[0].label = datasetLabel;
+          chartInstance.current.data.datasets[0].data = datasetData;
+          chartInstance.current.data.datasets[0].borderColor = borderColor;
+          chartInstance.current.data.datasets[0].backgroundColor = bgColor;
+          chartInstance.current.options.scales.y.type = isLog ? 'logarithmic' : 'linear';
+          chartInstance.current.options.scales.y.min = isLog ? 1e-8 : undefined;
+          chartInstance.current.update('none');
+        }
+      }, [history, chartMetric, activeTab]);
+
+      const handleInjectFault = async (faultType) => {
+        try {
+          const res = await fetch(API_BASE + `/api/nodes/${targetInjectNode}/inject-fault`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fault_type: faultType })
+          });
+          if (res.ok) {
+            showToast(`⚠️ Injected IEEE-754 ${faultType.toUpperCase()} bit-flip into ${targetInjectNode}! Autonomous AI sandboxing node...`);
+            fetchData();
+          }
+        } catch (e) {}
+      };
+
+      const handleToggleQuarantine = async (nodeId, quarantine) => {
+        try {
+          await fetch(API_BASE + `/api/nodes/${nodeId}/quarantine`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ quarantine })
+          });
+          showToast(quarantine ? `🛡️ Quarantined node ${nodeId}` : `✅ Restored node ${nodeId}`);
+          fetchData();
+        } catch (e) {}
+      };
+
+      const handleDiagnose = async (nodeId) => {
+        try {
+          const res = await fetch(API_BASE + `/api/agent/diagnose`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ node_id: nodeId })
+          });
+          if (res.ok) setSelectedReport(await res.json());
+        } catch (e) {}
+      };
+
+      const handleSendMessage = async (queryText) => {
+        const query = queryText || chatInput;
+        if (!query.trim()) return;
+
+        const newMsgs = [...chatMessages, { sender: 'user', text: query }];
+        setChatMessages(newMsgs);
+        setChatInput('');
+        setChatLoading(true);
+
+        try {
+          const res = await fetch(API_BASE + '/api/v1/assistant/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: query })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setChatMessages([...newMsgs, { sender: 'bot', text: data.response }]);
+          }
+        } catch (e) {
+          setChatMessages([...newMsgs, { sender: 'bot', text: '⚠️ Connection error reaching AI Operations Assistant.' }]);
+        } finally {
+          setChatLoading(false);
+        }
+      };
+
+      const isCritical = summary?.degraded_nodes > 0;
+      const isAutoActive = summary?.quarantined_nodes > 0;
+      const activeAnomalyRecords = history.filter(h => h.has_fault_injected || h.relative_error > 1e-5);
+      const throughputHistory = history.map(h => 100000 + (Math.random() * 4000 - 2000));
+
+      return (
+        <div className="flex-1 flex flex-col">
+          
+          {/* Toast Banner */}
+          {toastMsg && (
+            <div className="fixed top-4 right-4 z-50 px-4 py-3 bg-slate-900 border border-cyan-500 text-cyan-300 rounded-xl shadow-2xl font-mono-code text-xs flex items-center space-x-2 animate-bounce">
+              <span>{toastMsg}</span>
+            </div>
+          )}
+
+          {/* Command Palette Modal (⌘K) */}
+          {cmdPaletteOpen && (
+            <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-slate-950/80 backdrop-blur-md" onClick={() => setCmdPaletteOpen(false)}>
+              <div className="glass-panel w-full max-w-xl rounded-2xl border border-cyan-500/40 p-4 shadow-2xl space-y-3 font-mono-code text-xs" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center space-x-2 bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                  <span className="text-cyan-400 font-bold">🔍</span>
+                  <input type="text" placeholder="Type a command or search modules (e.g. 'ops', 'incidents', 'cyber')..." className="bg-transparent text-white outline-none w-full" autoFocus />
+                  <span className="text-[10px] text-slate-500 border border-slate-800 px-1.5 py-0.5 rounded">ESC</span>
+                </div>
+                <div className="space-y-1">
+                  <div onClick={() => { setActiveTab('overview'); setCmdPaletteOpen(false); }} className="p-2 hover:bg-slate-900 rounded-lg cursor-pointer flex justify-between text-slate-300">
+                    <span>📊 Executive Overview</span>
+                    <span className="text-slate-500">Module</span>
+                  </div>
+                  <div onClick={() => { setActiveTab('ops'); setCmdPaletteOpen(false); }} className="p-2 hover:bg-slate-900 rounded-lg cursor-pointer flex justify-between text-slate-300">
+                    <span>⚡ Operations Center</span>
+                    <span className="text-slate-500">Module</span>
+                  </div>
+                  <div onClick={() => { setActiveTab('incidents'); setCmdPaletteOpen(false); }} className="p-2 hover:bg-slate-900 rounded-lg cursor-pointer flex justify-between text-slate-300">
+                    <span>🚨 Alerts & SDC Incidents</span>
+                    <span className="text-slate-500">Module</span>
+                  </div>
+                  <div onClick={() => { handleInjectFault('mantissa'); setCmdPaletteOpen(false); }} className="p-2 hover:bg-slate-900 rounded-lg cursor-pointer flex justify-between text-amber-400">
+                    <span>💥 Quick Action: Inject Mantissa Flip</span>
+                    <span className="text-slate-500">Fault Engine</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* MAIN ENTERPRISE TOP HEADER */}
+          <header className="glass-panel sticky top-0 z-40 border-b border-slate-800">
+            <div className="px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 bg-slate-900 rounded-xl text-cyan-400 border border-cyan-500/40 glow-cyan">
+                  ⚡
+                </div>
+                <div>
+                  <h1 className="text-xl font-black tracking-wider font-mono-code">AEGIS<span className="text-cyan-400">SILICON</span></h1>
+                  <p className="text-xs opacity-70">Enterprise AI Infrastructure Platform & Autonomous Operations</p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-4">
+                {/* Command Palette Trigger */}
+                <button onClick={() => setCmdPaletteOpen(true)} className="hidden sm:flex items-center space-x-2 px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs font-mono-code text-slate-400 hover:border-cyan-500">
+                  <span>⌘K Command Palette</span>
+                </button>
+
+                {/* 11 Theme Selector */}
+                <div className="hidden lg:flex items-center bg-slate-900/90 border border-slate-800 rounded-lg p-1 text-[11px] font-mono-code">
+                  <span className="px-2 opacity-60 text-[10px]">THEME:</span>
+                  <button onClick={() => setTheme('midnight')} className={`px-2 py-0.5 rounded font-bold ${theme==='midnight'?'bg-slate-800 text-white':''}`}>Midnight</button>
+                  <button onClick={() => setTheme('aurora')} className={`px-2 py-0.5 rounded font-bold ${theme==='aurora'?'bg-teal-950 text-teal-300':''}`}>Aurora</button>
+                  <button onClick={() => setTheme('cyberpunk')} className={`px-2 py-0.5 rounded font-bold ${theme==='cyberpunk'?'bg-cyan-950 text-cyan-400':''}`}>Cyber</button>
+                  <button onClick={() => setTheme('emerald')} className={`px-2 py-0.5 rounded font-bold ${theme==='emerald'?'bg-emerald-950 text-emerald-400':''}`}>Emerald</button>
+                  <button onClick={() => setTheme('sunset')} className={`px-2 py-0.5 rounded font-bold ${theme==='sunset'?'bg-orange-950 text-orange-400':''}`}>Sunset</button>
+                  <button onClick={() => setTheme('graphite')} className={`px-2 py-0.5 rounded font-bold ${theme==='graphite'?'bg-slate-700 text-gray-200':''}`}>Graphite</button>
+                  <button onClick={() => setTheme('arctic')} className={`px-2 py-0.5 rounded font-bold ${theme==='arctic'?'bg-blue-200 text-blue-900':''}`}>Arctic</button>
+                  <button onClick={() => setTheme('crimson')} className={`px-2 py-0.5 rounded font-bold ${theme==='crimson'?'bg-rose-950 text-rose-300':''}`}>Crimson</button>
+                  <button onClick={() => setTheme('purple')} className={`px-2 py-0.5 rounded font-bold ${theme==='purple'?'bg-purple-950 text-purple-400':''}`}>Purple</button>
+                  <button onClick={() => setTheme('dark')} className={`px-2 py-0.5 rounded font-bold ${theme==='dark'?'bg-slate-900 text-sky-400':''}`}>Dark</button>
+                  <button onClick={() => setTheme('light')} className={`px-2 py-0.5 rounded font-bold ${theme==='light'?'bg-white text-blue-600':''}`}>Light</button>
+                </div>
+
+                {/* WebSocket Badge */}
+                <div className="flex items-center space-x-2 text-xs font-mono-code">
+                  <span className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-ping' : 'bg-amber-500'}`}></span>
+                  <span className="opacity-80 font-bold">{isConnected ? 'LIVE STREAM' : 'REST POLLING'}</span>
+                </div>
+
+                {/* System Status Badge */}
+                <div className={`px-3 py-1.5 rounded-lg border text-xs font-bold ${
+                  isCritical ? 'bg-red-950 border-red-500 text-red-400 pulse-red' : (isAutoActive ? 'bg-amber-950 border-amber-500 text-amber-300' : 'bg-emerald-950 border-emerald-500 text-emerald-400')
+                }`}>
+                  {isCritical ? '🔴 CRITICAL SDC DRIFT' : (isAutoActive ? '🟡 AUTONOMOUS AI SANDBOX' : '🟢 SYSTEM NOMINAL')}
+                </div>
+              </div>
+            </div>
+
+            {/* NAVIGATION MODULES */}
+            <div className="px-6 flex space-x-1 border-t border-slate-800/80 bg-slate-950/60 font-mono-code text-xs overflow-x-auto">
+              <button 
+                onClick={() => setActiveTab('overview')}
+                className={`py-3 px-4 font-bold border-b-2 transition flex items-center space-x-2 whitespace-nowrap ${
+                  activeTab === 'overview' ? 'border-cyan-400 text-cyan-400 bg-slate-900/60' : 'border-transparent opacity-70 hover:opacity-100'
+                }`}
+              >
+                <span>📊 Executive Overview</span>
+              </button>
+
+              <button 
+                onClick={() => setActiveTab('ops')}
+                className={`py-3 px-4 font-bold border-b-2 transition flex items-center space-x-2 whitespace-nowrap ${
+                  activeTab === 'ops' ? 'border-cyan-400 text-cyan-400 bg-slate-900/60' : 'border-transparent opacity-70 hover:opacity-100'
+                }`}
+              >
+                <span>⚡ Operations Center</span>
+              </button>
+
+              <button 
+                onClick={() => setActiveTab('infra')}
+                className={`py-3 px-4 font-bold border-b-2 transition flex items-center space-x-2 whitespace-nowrap ${
+                  activeTab === 'infra' ? 'border-cyan-400 text-cyan-400 bg-slate-900/60' : 'border-transparent opacity-70 hover:opacity-100'
+                }`}
+              >
+                <span>🖥️ Infrastructure Monitoring</span>
+              </button>
+
+              <button 
+                onClick={() => setActiveTab('models')}
+                className={`py-3 px-4 font-bold border-b-2 transition flex items-center space-x-2 whitespace-nowrap ${
+                  activeTab === 'models' ? 'border-purple-400 text-purple-400 bg-slate-900/60' : 'border-transparent opacity-70 hover:opacity-100'
+                }`}
+              >
+                <span>🤖 AI Models & Workloads</span>
+              </button>
+
+              <button 
+                onClick={() => setActiveTab('services')}
+                className={`py-3 px-4 font-bold border-b-2 transition flex items-center space-x-2 whitespace-nowrap ${
+                  activeTab === 'services' ? 'border-emerald-400 text-emerald-400 bg-slate-900/60' : 'border-transparent opacity-70 hover:opacity-100'
+                }`}
+              >
+                <span>🧠 AI Provider Pool</span>
+              </button>
+
+              <button 
+                onClick={() => setActiveTab('incidents')}
+                className={`py-3 px-4 font-bold border-b-2 transition flex items-center space-x-2 whitespace-nowrap ${
+                  activeTab === 'incidents' ? 'border-red-400 text-red-400 bg-slate-900/60' : 'border-transparent opacity-70 hover:opacity-100'
+                }`}
+              >
+                <span>🚨 Alerts & Incidents</span>
+                {summary?.degraded_nodes > 0 && (
+                  <span className="px-1.5 py-0.5 text-[10px] bg-red-950 text-red-400 border border-red-800 rounded-full animate-pulse">
+                    {summary.degraded_nodes}
+                  </span>
+                )}
+              </button>
+
+              <button 
+                onClick={() => setActiveTab('storage')}
+                className={`py-3 px-4 font-bold border-b-2 transition flex items-center space-x-2 whitespace-nowrap ${
+                  activeTab === 'storage' ? 'border-amber-400 text-amber-400 bg-slate-900/60' : 'border-transparent opacity-70 hover:opacity-100'
+                }`}
+              >
+                <span>☁️ Storage & Archives</span>
+              </button>
+            </div>
+          </header>
+
+          {/* MAIN CONTENT AREA */}
+          <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+
+            {/* ================= MODULE 1: EXECUTIVE OVERVIEW ================= */}
+            {activeTab === 'overview' && (
+              <div className="space-y-6">
+                
+                {/* Visual Metric Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                  
+                  <div className="glass-panel p-4 rounded-2xl border border-emerald-500/20 flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-mono-code uppercase text-emerald-400 font-bold">Infrastructure Health</div>
+                      <div className="text-xs opacity-60 mt-1 font-mono-code">SDC Integrity Score</div>
+                    </div>
+                    <RadialGauge score={summary?.cluster_health_score || 100} />
+                  </div>
+
+                  <div className="glass-panel p-4 rounded-2xl border border-cyan-500/20 flex flex-col justify-between">
+                    <div>
+                      <div className="text-xs font-mono-code uppercase text-cyan-400 font-bold">Throughput Rate</div>
+                      <div className="text-2xl font-black font-mono-code my-0.5">{summary?.cluster_throughput_rec_sec ? summary.cluster_throughput_rec_sec.toLocaleString() : '100,000'} rec/s</div>
+                    </div>
+                    <div className="mt-2">
+                      <MiniSparkline data={throughputHistory} color="#06b6d4" height={24} />
+                    </div>
+                  </div>
+
+                  <div className="glass-panel p-4 rounded-2xl border border-blue-500/20 flex flex-col justify-between font-mono-code">
+                    <div className="text-xs uppercase text-blue-400 font-bold">Compute Nodes</div>
+                    <div className="text-2xl font-black my-1">{summary?.total_nodes || 16}</div>
+                    <div className="text-xs opacity-80">
+                      <span className="text-emerald-400 font-bold">{summary?.healthy_nodes || 0} Healthy</span> | <span className="text-amber-400 font-bold">{summary?.degraded_nodes || 0} Degraded</span>
+                    </div>
+                  </div>
+
+                  <div className={`glass-panel p-4 rounded-2xl border flex flex-col justify-between font-mono-code ${isCritical ? 'border-red-500/60 glow-red' : 'border-slate-800'}`}>
+                    <div className="text-xs uppercase text-red-400 font-bold">Active SDC Anomalies</div>
+                    <div className="text-2xl font-black text-red-400 my-1">{summary?.degraded_nodes || 0}</div>
+                    <div className="text-xs opacity-70">Mantissa/Exponent Drift</div>
+                  </div>
+
+                  <div className="glass-panel p-4 rounded-2xl border border-amber-500/30 flex flex-col justify-between font-mono-code">
+                    <div className="text-xs uppercase text-amber-400 font-bold">Quarantined Pool</div>
+                    <div className="text-2xl font-black text-amber-400 my-1">{summary?.quarantined_nodes || 0}</div>
+                    <div className="text-xs text-amber-300/80">Auto-Sandboxed by AI</div>
+                  </div>
+
+                </div>
+
+                {/* GPU Cluster Heatmap Grid */}
+                <div className="glass-panel p-6 rounded-2xl border border-slate-800">
+                  <div className="flex items-center justify-between mb-4 font-mono-code">
+                    <h2 className="text-lg font-bold flex items-center space-x-2">
+                      <span className="text-amber-400">🔥</span>
+                      <span>GPU CLUSTER THERMAL & HEALTH HEATMAP</span>
+                    </h2>
+                    <span className="text-xs opacity-60">16 COMPUTE TILES</span>
+                  </div>
+
+                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-3 font-mono-code text-xs">
+                    {nodes.map(n => {
+                      const isQ = n.status === 'QUARANTINED';
+                      const isD = n.status === 'DEGRADED';
+                      let tileBg = 'bg-emerald-950/80 border-emerald-700/80 text-emerald-300';
+                      if (isD) tileBg = 'bg-red-950/90 border-red-500 text-red-300 animate-pulse glow-red';
+                      if (isQ) tileBg = 'bg-amber-950/80 border-amber-700/80 text-amber-300';
+
+                      return (
+                        <div 
+                          key={n.node_id} 
+                          onClick={() => setSelectedNode(n)}
+                          className={`p-3 rounded-xl border ${tileBg} cursor-pointer hover:scale-105 transition flex flex-col items-center justify-center text-center`}
+                        >
+                          <div className="font-bold text-[11px]">{n.node_id.replace('gpu-node-', 'N')}</div>
+                          <div className="text-[10px] mt-1 opacity-80">{n.current_temperature?.toFixed(0)}°C</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Streaming Graph & Autonomous AI Audit Log */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="lg:col-span-2 glass-panel p-6 rounded-2xl border border-slate-800">
+                    <div className="flex items-center justify-between mb-4 font-mono-code">
+                      <h2 className="text-lg font-bold">REAL-TIME STREAMING TELEMETRY GRAPH</h2>
+                      <div className="flex space-x-2">
+                        <button onClick={() => setChartMetric('error')} className={`px-3 py-1 rounded text-xs font-bold ${chartMetric==='error'?'bg-cyan-950 text-cyan-400 border border-cyan-700':'bg-slate-900 text-slate-400'}`}>FP32 Error</button>
+                        <button onClick={() => setChartMetric('temp')} className={`px-3 py-1 rounded text-xs font-bold ${chartMetric==='temp'?'bg-amber-950 text-amber-400 border border-amber-700':'bg-slate-900 text-slate-400'}`}>Temp (°C)</button>
+                        <button onClick={() => setChartMetric('voltage')} className={`px-3 py-1 rounded text-xs font-bold ${chartMetric==='voltage'?'bg-blue-950 text-blue-400 border border-blue-700':'bg-slate-900 text-slate-400'}`}>Voltage (V)</button>
+                      </div>
+                    </div>
+                    <div className="h-72 w-full relative">
+                      <canvas ref={chartRef}></canvas>
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-1 glass-panel p-6 rounded-2xl border border-slate-800">
+                    <h2 className="text-lg font-bold font-mono-code mb-4 flex items-center justify-between">
+                      <span>AUTONOMOUS AI LOG</span>
+                      <span className="text-xs px-2 py-0.5 bg-cyan-950 text-cyan-400 border border-cyan-800 rounded">CLOSED-LOOP</span>
+                    </h2>
+                    <div className="space-y-3 max-h-72 overflow-y-auto pr-1 font-mono-code text-xs">
+                      {auditLogs.length === 0 ? (
+                        <div className="p-4 text-center opacity-50">Monitoring cluster telemetry... No autonomous sandboxing required yet.</div>
+                      ) : (
+                        auditLogs.map((log, idx) => (
+                          <div key={idx} className="p-3 bg-slate-900/80 rounded-xl border border-amber-500/30 space-y-1">
+                            <div className="flex justify-between font-bold text-amber-300">
+                              <span>{log.node_id}</span>
+                              <span>{(log.risk_score * 100).toFixed(0)}% RISK</span>
+                            </div>
+                            <div className="opacity-80 text-[11px]">{log.diagnosis}</div>
+                            <div className="text-cyan-400 text-[10px] truncate">{log.s3_url}</div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* ================= MODULE 2: OPERATIONS CENTER ================= */}
+            {activeTab === 'ops' && (
+              <div className="space-y-6">
+                
+                {/* Fault Injector Console */}
+                <div className="glass-panel p-5 rounded-2xl border border-cyan-500/40 glow-cyan flex flex-col md:flex-row items-center justify-between gap-4 font-mono-code">
+                  <div>
+                    <h3 className="text-sm font-bold flex items-center space-x-2">
+                      <span className="text-cyan-400 text-lg">⚡</span>
+                      <span>INTERACTIVE SDC FAULT INJECTOR CONSOLE</span>
+                    </h3>
+                    <p className="text-xs opacity-70 font-sans">Inject bit-flips into active matrix calculations & trigger immediate autonomous AI sandboxing.</p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <select 
+                      value={targetInjectNode} 
+                      onChange={(e) => setTargetInjectNode(e.target.value)}
+                      className="bg-slate-900 border border-slate-700 text-cyan-300 font-bold rounded-lg px-3 py-2 outline-none"
+                    >
+                      {nodes.map(n => <option key={n.node_id} value={n.node_id}>{n.node_id} ({n.status})</option>)}
+                    </select>
+
+                    <button 
+                      onClick={() => handleInjectFault('mantissa')} 
+                      className="px-3.5 py-2 bg-amber-950 hover:bg-amber-900 border border-amber-700/80 text-amber-300 rounded-lg font-bold transition transform active:scale-95 shadow-lg shadow-amber-950"
+                    >
+                      💥 Inject Mantissa Flip
+                    </button>
+
+                    <button 
+                      onClick={() => handleInjectFault('exponent')} 
+                      className="px-3.5 py-2 bg-red-950 hover:bg-red-900 border border-red-700/80 text-red-300 rounded-lg font-bold transition transform active:scale-95 shadow-lg shadow-red-950"
+                    >
+                      🔥 Inject Exponent Burst
+                    </button>
+
+                    <button 
+                      onClick={() => handleToggleQuarantine(targetInjectNode, false)} 
+                      className="px-3.5 py-2 bg-emerald-950 hover:bg-emerald-900 border border-emerald-700/80 text-emerald-300 rounded-lg font-bold transition transform active:scale-95"
+                    >
+                      🟢 Clear & Restore
+                    </button>
+                  </div>
+                </div>
+
+                {/* Node Grid */}
+                <div className="glass-panel p-6 rounded-2xl border border-slate-800">
+                  <div className="flex items-center justify-between mb-4 font-mono-code">
+                    <h2 className="text-lg font-bold">AI COMPUTE CLUSTER TOPOLOGY</h2>
+                    <span className="text-xs opacity-60">16 EDGE GPU NODES</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                    {nodes.map(n => {
+                      const isQ = n.status === 'QUARANTINED';
+                      const isD = n.status === 'DEGRADED';
+                      
+                      let cardBorder = 'border-slate-800 bg-slate-900/60';
+                      let badgeStyle = 'bg-emerald-950 text-emerald-400 border-emerald-800';
+
+                      if (isD) { 
+                        cardBorder = 'border-red-500/50 bg-red-950/40 glow-red'; 
+                        badgeStyle = 'bg-red-950 text-red-400 border-red-800 animate-pulse';
+                      } else if (isQ) { 
+                        cardBorder = 'border-amber-500/50 bg-amber-950/30'; 
+                        badgeStyle = 'bg-amber-950 text-amber-400 border-amber-800';
+                      }
+
+                      const nodeSparkline = [
+                        n.current_temperature - 2, 
+                        n.current_temperature - 1, 
+                        n.current_temperature + 1, 
+                        n.current_temperature
+                      ];
+
+                      return (
+                        <div 
+                          key={n.node_id} 
+                          className={`group relative p-4 rounded-xl border ${cardBorder} transition-all duration-300 hover:scale-[1.02] cursor-pointer`}
+                          onClick={() => setSelectedNode(n)}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-mono-code font-bold text-sm text-slate-200">{n.node_id}</span>
+                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${badgeStyle}`}>{n.status}</span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-xs bg-slate-950/80 p-2 rounded-lg mb-3 font-mono-code opacity-90">
+                            <div>Temp: <span className="text-amber-400 font-bold">{n.current_temperature?.toFixed(1)}°C</span></div>
+                            <div>Volt: <span className="text-blue-400 font-bold">{n.current_voltage?.toFixed(3)}V</span></div>
+                          </div>
+
+                          <div className="mb-3">
+                            <MiniSparkline data={nodeSparkline} color={isD ? '#ef4444' : '#10b981'} height={18} />
+                          </div>
+
+                          <div className="flex space-x-2 font-mono-code text-xs">
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleToggleQuarantine(n.node_id, !isQ); }} 
+                              className={`flex-1 py-1 px-2 rounded font-bold transition ${isQ ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40' : 'bg-red-950 hover:bg-red-900 text-red-300 border border-red-800'}`}
+                            >
+                              {isQ ? 'Restore' : 'Sandbox'}
+                            </button>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleDiagnose(n.node_id); }} 
+                              className="px-2.5 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-300 rounded font-bold"
+                            >
+                              RAG AI
+                            </button>
+                          </div>
+
+                          <div className="absolute inset-0 bg-slate-950/95 p-4 rounded-xl border border-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none flex flex-col justify-between text-xs font-mono-code z-20">
+                            <div className="flex justify-between font-bold text-cyan-400 border-b border-slate-800 pb-1">
+                              <span>{n.node_id} SPECS</span>
+                              <span>320W POWER</span>
+                            </div>
+                            <div className="space-y-1 text-slate-300 text-[11px]">
+                              <div>VRAM Allocation: <span className="text-emerald-400 font-bold">84% (67.2 / 80 GB)</span></div>
+                              <div>Evaluated Batches: <span className="text-slate-100 font-bold">{n.total_batches}</span></div>
+                              <div>SDC Fault History: <span className="text-red-400 font-bold">{n.sdc_fault_count}</span></div>
+                            </div>
+                            <div className="text-[10px] text-cyan-300/80 font-bold">CLICK CARD TO INSPECT GAUGES</div>
+                          </div>
+
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* ================= MODULE 3: INFRASTRUCTURE MONITORING ================= */}
+            {activeTab === 'infra' && (
+              <div className="space-y-6 font-mono-code text-xs">
+                <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4">
+                  <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                    <h2 className="text-lg font-bold text-white">REAL-TIME CLUSTER METRICS & POWER RAILS</h2>
+                    <div className="flex space-x-2">
+                      <button onClick={() => setChartMetric('error')} className={`px-3 py-1 rounded text-xs font-bold ${chartMetric==='error'?'bg-cyan-950 text-cyan-400 border border-cyan-700':'bg-slate-900 text-slate-400'}`}>FP32 Error</button>
+                      <button onClick={() => setChartMetric('temp')} className={`px-3 py-1 rounded text-xs font-bold ${chartMetric==='temp'?'bg-amber-950 text-amber-400 border border-amber-700':'bg-slate-900 text-slate-400'}`}>Temp (°C)</button>
+                      <button onClick={() => setChartMetric('voltage')} className={`px-3 py-1 rounded text-xs font-bold ${chartMetric==='voltage'?'bg-blue-950 text-blue-400 border border-blue-700':'bg-slate-900 text-slate-400'}`}>Voltage (V)</button>
+                    </div>
+                  </div>
+
+                  <div className="h-80 w-full relative">
+                    <canvas ref={chartRef}></canvas>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ================= MODULE 4: AI MODELS & WORKLOADS ================= */}
+            {activeTab === 'models' && (
+              <div className="space-y-6 font-mono-code text-xs">
+                <div className="glass-panel p-6 rounded-2xl border border-purple-500/30">
+                  <div className="flex justify-between items-center mb-4">
+                    <div>
+                      <h2 className="text-lg font-bold text-white flex items-center space-x-2">
+                        <span className="text-purple-400">🤖</span>
+                        <span>AI MODEL INFERENCE PERFORMANCE & MATRIX TASKS</span>
+                      </h2>
+                      <p className="text-xs opacity-60 font-sans">Active model deployment metrics across edge GPU clusters</p>
+                    </div>
+                    <span className="px-3 py-1 bg-purple-950 text-purple-300 border border-purple-800 rounded font-bold text-xs">
+                      4 DEPLOYED MODEL PIPELINES
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="bg-slate-900/80 text-slate-400 uppercase border-b border-slate-800 text-[11px]">
+                        <tr>
+                          <th className="p-3">Model Pipeline Name</th>
+                          <th className="p-3">Active GPU Instances</th>
+                          <th className="p-3">Inference Rate (RPS)</th>
+                          <th className="p-3">P99 Latency</th>
+                          <th className="p-3">TTFT (Time To First Token)</th>
+                          <th className="p-3">Error Rate</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                        {aiModels.map((m, idx) => (
+                          <tr key={idx} className="hover:bg-slate-900/40">
+                            <td className="p-3 font-bold text-cyan-400">{m.model_name}</td>
+                            <td className="p-3">{m.active_instances} GPUs</td>
+                            <td className="p-3 font-bold text-emerald-400">{m.request_rate_rps} req/s</td>
+                            <td className="p-3 text-amber-300">{m.p99_latency_ms} ms</td>
+                            <td className="p-3">{m.ttft_ms} ms</td>
+                            <td className="p-3 font-bold text-slate-400">{m.error_rate_pct}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ================= MODULE 5: DYNAMIC AI PROVIDER SERVICES ================= */}
+            {activeTab === 'services' && (
+              <div className="space-y-6 font-mono-code text-xs">
+                <div className="glass-panel p-6 rounded-2xl border border-emerald-500/30">
+                  <div className="flex justify-between items-center mb-4">
+                    <div>
+                      <h2 className="text-lg font-bold text-white flex items-center space-x-2">
+                        <span className="text-emerald-400">🧠</span>
+                        <span>DYNAMIC AI PROVIDER SERVICES HEALTH</span>
+                      </h2>
+                      <p className="text-xs opacity-60 font-sans">Real-time status, latency, request rate, and active models across connected AI providers</p>
+                    </div>
+                    <span className="px-3 py-1 bg-emerald-950 text-emerald-400 border border-emerald-800 rounded font-bold text-xs">
+                      LIVE PROVIDER POOL
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {aiServices.map((s, idx) => (
+                      <div key={idx} className="p-4 bg-slate-900/80 rounded-xl border border-slate-800 space-y-3">
+                        <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                          <span className="font-bold text-cyan-300">{s.provider_name}</span>
+                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${s.status.includes('Healthy') ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-amber-950 text-amber-300 border border-amber-800'}`}>
+                            {s.status}
+                          </span>
+                        </div>
+                        <div className="space-y-1 opacity-90 text-[11px]">
+                          <div>Uptime: <span className="text-emerald-400 font-bold">{s.uptime_pct}%</span></div>
+                          <div>Inference Latency: <span className="text-amber-300 font-bold">{s.latency_ms} ms</span></div>
+                          <div>Request Throughput: <span className="text-slate-200 font-bold">{s.requests_per_sec} req/s</span></div>
+                          <div>Tokens/Sec: <span className="text-cyan-300 font-bold">{s.tokens_per_sec} tok/s</span></div>
+                        </div>
+                        <div className="pt-2 border-t border-slate-800 text-[10px] text-slate-400">
+                          Active Models: {s.active_models.join(', ')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ================= MODULE 6: ALERTS & INCIDENTS ================= */}
+            {activeTab === 'incidents' && (
+              <div className="space-y-6 font-mono-code text-xs">
+                <div className="glass-panel p-6 rounded-2xl border border-red-500/30">
+                  <div className="flex justify-between items-center mb-4">
+                    <div>
+                      <h2 className="text-lg font-bold text-white flex items-center space-x-2">
+                        <span className="text-red-400 animate-pulse">🚨</span>
+                        <span>ACTIVE INCIDENTS & IEEE-754 BIT-FLIP DRIFT LOGS</span>
+                      </h2>
+                      <p className="text-xs opacity-60 font-sans">Live inspection of degrading compute nodes & raw 32-bit binary bit representations</p>
+                    </div>
+                    <span className="px-3 py-1 bg-red-950 text-red-400 border border-red-800 rounded font-bold text-xs">
+                      {incidents.length} INCIDENT ALERTS
+                    </span>
+                  </div>
+
+                  <div className="space-y-4">
+                    {activeAnomalyRecords.length === 0 ? (
+                      <div className="p-8 bg-slate-900/60 rounded-xl border border-slate-800 text-center opacity-60 text-xs">
+                        No active degraded matrix computations detected in current micro-batch. All nodes executing nominally.
+                      </div>
+                    ) : (
+                      activeAnomalyRecords.map((rec, i) => {
+                        const fault = rec.fault_details || {};
+                        return (
+                          <div key={i} className="p-4 bg-slate-900/90 rounded-xl border border-red-500/40 text-xs space-y-3">
+                            <div className="flex flex-wrap justify-between items-center border-b border-slate-800 pb-2">
+                              <div className="flex items-center space-x-3">
+                                <span className="text-sm font-bold text-cyan-400">{rec.node_id}</span>
+                                <span className="px-2 py-0.5 bg-red-950 text-red-400 border border-red-800 rounded text-[10px] font-bold">
+                                  {fault.fault_region?.toUpperCase() || 'MANTISSA'} BIT-FLIP
+                                </span>
+                              </div>
+                              <div className="text-amber-300 font-bold">
+                                ACTIVE WORKLOAD: {rec.active_workload || 'LLM_ATTENTION_KEY_VALUE_PROJECTION'}
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px] bg-slate-950 p-3 rounded-lg border border-slate-800">
+                              <div><span className="opacity-60">Matrix Operation:</span> GEMM FP32 (64x64)</div>
+                              <div><span className="opacity-60">Matrix Cell Location:</span> {fault.matrix_cell_index || 'Row 14, Col 28'}</div>
+                              <div><span className="opacity-60">Relative Error:</span> <span className="text-red-400 font-bold">{rec.relative_error?.toExponential(4)}</span></div>
+                              <div><span className="opacity-60">Ground Truth Norm:</span> {rec.expected_norm?.toFixed(4)}</div>
+                              <div><span className="opacity-60">Corrupted Matrix Norm:</span> {rec.computed_norm?.toFixed(4)}</div>
+                              <div><span className="opacity-60">Physical Parameters:</span> {rec.temperature_c}°C | {rec.voltage_v}V</div>
+                            </div>
+
+                            {fault.orig_binary && (
+                              <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 text-[11px] space-y-1">
+                                <div className="text-xs font-bold opacity-70 uppercase">IEEE-754 32-Bit Binary Bit Representation Comparison:</div>
+                                <div className="flex space-x-2">
+                                  <span className="w-28 opacity-50">Clean FP32 Bits:</span>
+                                  <span className="text-emerald-400 font-bold tracking-wider">{fault.orig_binary}</span>
+                                  <span className="opacity-50">({fault.original_value})</span>
+                                </div>
+                                <div className="flex space-x-2">
+                                  <span className="w-28 opacity-50">Corrupted Bits:</span>
+                                  <span className="text-red-400 font-bold tracking-wider">{fault.corrupt_binary}</span>
+                                  <span className="opacity-50">({fault.corrupted_value?.toFixed(6)})</span>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="flex justify-between items-center pt-1">
+                              <span className="opacity-50 text-[10px]">TIMESTAMP: {new Date(rec.timestamp * 1000).toISOString()}</span>
+                              <button onClick={() => handleDiagnose(rec.node_id)} className="px-3 py-1 bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-300 rounded font-bold text-xs">
+                                Run RAG AI Diagnosis
+                              </button>
+                            </div>
+
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ================= MODULE 7: STORAGE & ARCHIVES ================= */}
+            {activeTab === 'storage' && (
+              <div className="space-y-6 font-mono-code text-xs">
+                <div className="glass-panel p-6 rounded-2xl border border-amber-500/30">
+                  <div className="flex justify-between items-center mb-4">
+                    <div>
+                      <h2 className="text-lg font-bold text-white flex items-center space-x-2">
+                        <span className="text-amber-400">☁️</span>
+                        <span>AMAZON S3 RAW TELEMETRY & FORENSIC ARCHIVES</span>
+                      </h2>
+                      <p className="text-xs opacity-60 font-sans">Partitioned bucket layout `s3://aegissilicon-telemetry-archive/raw_telemetry/year=2026/month=07/...`</p>
+                    </div>
+                    <span className="px-3 py-1 bg-amber-950 text-amber-400 border border-amber-800 rounded font-bold text-xs">
+                      {s3Archives.length} OBJECTS STORED
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-900 opacity-80 uppercase border-b border-slate-800">
+                        <tr>
+                          <th className="p-3">Partition S3 Key</th>
+                          <th className="p-3">Landed Timestamp</th>
+                          <th className="p-3">Record Count</th>
+                          <th className="p-3">Payload Size</th>
+                          <th className="p-3 text-right">URI</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 opacity-90">
+                        {s3Archives.map((arc, idx) => (
+                          <tr key={idx} className="hover:bg-slate-900/40">
+                            <td className="p-3 font-bold text-cyan-400">{arc.s3_key || 'raw_telemetry/year=2026/batch.json'}</td>
+                            <td className="p-3 opacity-60">{new Date(arc.timestamp * 1000).toLocaleTimeString()}</td>
+                            <td className="p-3">{arc.record_count} events</td>
+                            <td className="p-3 opacity-60">{arc.size_bytes} bytes</td>
+                            <td className="p-3 text-right text-cyan-300 text-[11px] truncate max-w-xs">{arc.s3_url}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </main>
+
+          {/* 💬 CONVERSATIONAL AI OPERATIONS COPILOT */}
+          <div className="fixed bottom-6 right-6 z-50">
+            {!chatOpen ? (
+              <button 
+                onClick={() => setChatOpen(true)}
+                className="px-4 py-3 bg-slate-900 hover:bg-cyan-950 border border-cyan-500/60 text-cyan-300 rounded-full shadow-2xl font-mono-code text-xs font-bold flex items-center space-x-2 glow-cyan transition transform hover:scale-105"
+              >
+                <span>💬 Aegis AI Copilot</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+              </button>
+            ) : (
+              <div className="glass-panel w-80 sm:w-96 rounded-2xl border border-cyan-500/40 shadow-2xl overflow-hidden flex flex-col font-sans animate-in slide-in-from-bottom-5">
+                <div className="px-4 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-cyan-400">🤖</span>
+                    <span className="font-mono-code font-bold text-xs text-white">Aegis AI Operations Copilot</span>
+                  </div>
+                  <button onClick={() => setChatOpen(false)} className="opacity-60 hover:opacity-100 font-bold">✕</button>
+                </div>
+
+                <div className="p-4 h-72 overflow-y-auto space-y-3 text-xs">
+                  {chatMessages.map((m, idx) => (
+                    <div key={idx} className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`p-3 rounded-xl max-w-[85%] leading-relaxed ${
+                        m.sender === 'user' ? 'bg-cyan-950 text-cyan-200 border border-cyan-800' : 'bg-slate-900 text-slate-200 border border-slate-800'
+                      }`}>
+                        {m.text}
+                      </div>
+                    </div>
+                  ))}
+                  {chatLoading && (
+                    <div className="opacity-60 text-[11px] font-mono-code animate-pulse">Aegis Copilot checking telemetry context & RAG...</div>
+                  )}
+                </div>
+
+                {/* Quick Prompts */}
+                <div className="px-3 py-2 bg-slate-950/80 border-t border-slate-800 flex flex-wrap gap-1">
+                  <button onClick={() => handleSendMessage('Hi!')} className="px-2 py-1 bg-slate-900 text-cyan-300 text-[10px] rounded border border-slate-800 hover:border-cyan-700">
+                    Hi!
+                  </button>
+                  <button onClick={() => handleSendMessage('Give executive health status')} className="px-2 py-1 bg-slate-900 text-cyan-300 text-[10px] rounded border border-slate-800 hover:border-cyan-700">
+                    Health Status?
+                  </button>
+                  <button onClick={() => handleSendMessage('Which nodes are degrading right now?')} className="px-2 py-1 bg-slate-900 text-cyan-300 text-[10px] rounded border border-slate-800 hover:border-cyan-700">
+                    Degrading Nodes?
+                  </button>
+                </div>
+
+                {/* Input Bar */}
+                <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="p-3 bg-slate-900 border-t border-slate-800 flex space-x-2">
+                  <input 
+                    type="text" 
+                    value={chatInput} 
+                    onChange={(e) => setChatInput(e.target.value)} 
+                    placeholder="Ask Aegis Copilot AI..." 
+                    className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white outline-none font-mono-code"
+                  />
+                  <button type="submit" className="px-3 py-1.5 bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-700 rounded-lg text-xs font-bold">
+                    Send
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
+
+          {/* Node Inspector Modal */}
+          {selectedNode && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+              <div className="glass-panel w-full max-w-lg rounded-2xl border border-cyan-500/40 p-6 space-y-4">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-3 font-mono-code">
+                  <div>
+                    <h3 className="font-bold text-white text-lg">{selectedNode.node_id} INSPECTOR</h3>
+                    <p className="text-xs opacity-60">Status: <span className="font-bold text-cyan-400">{selectedNode.status}</span></p>
+                  </div>
+                  <button onClick={() => setSelectedNode(null)} className="opacity-60 hover:opacity-100 font-bold">✕</button>
+                </div>
+                <div className="grid grid-cols-2 gap-4 font-mono-code text-xs">
+                  <div className="p-3 bg-slate-900 rounded-xl border border-slate-800">
+                    <div className="opacity-60">Temperature</div>
+                    <div className="text-xl font-bold text-amber-400 mt-1">{selectedNode.current_temperature?.toFixed(1)}°C</div>
+                  </div>
+                  <div className="p-3 bg-slate-900 rounded-xl border border-slate-800">
+                    <div className="opacity-60">Voltage Level</div>
+                    <div className="text-xl font-bold text-blue-400 mt-1">{selectedNode.current_voltage?.toFixed(3)}V</div>
+                  </div>
+                  <div className="p-3 bg-slate-900 rounded-xl border border-slate-800">
+                    <div className="opacity-60">Evaluated Batches</div>
+                    <div className="text-xl font-bold text-slate-200 mt-1">{selectedNode.total_batches}</div>
+                  </div>
+                  <div className="p-3 bg-slate-900 rounded-xl border border-slate-800">
+                    <div className="opacity-60">SDC Fault Count</div>
+                    <div className="text-xl font-bold text-red-400 mt-1">{selectedNode.sdc_fault_count}</div>
+                  </div>
+                </div>
+                <div className="flex space-x-2 pt-2 border-t border-slate-800 font-mono-code text-xs">
+                  <button onClick={() => { handleToggleQuarantine(selectedNode.node_id, selectedNode.status !== 'QUARANTINED'); setSelectedNode(null); }} className="flex-1 py-2 bg-red-950 hover:bg-red-900 text-red-300 border border-red-700 rounded font-bold">
+                    {selectedNode.status === 'QUARANTINED' ? 'Restore Node' : 'Sandbox & Quarantine'}
+                  </button>
+                  <button onClick={() => { handleDiagnose(selectedNode.node_id); setSelectedNode(null); }} className="px-4 py-2 bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-700 rounded font-bold">
+                    Run RAG AI
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Diagnostic Report Modal */}
+          {selectedReport && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+              <div className="glass-panel w-full max-w-2xl rounded-2xl border border-cyan-500/40 p-6 space-y-4">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-3 font-mono-code">
+                  <div>
+                    <h3 className="font-bold text-white">LANGCHAIN RAG & OLLAMA DIAGNOSTIC REPORT</h3>
+                    <p className="text-xs opacity-60">Node: {selectedReport.node_id} | Report: {selectedReport.report_id}</p>
+                  </div>
+                  <button onClick={() => setSelectedReport(null)} className="opacity-60 hover:opacity-100 font-bold">✕</button>
+                </div>
+                <div className="p-4 bg-slate-900 rounded-xl border border-slate-800 space-y-2">
+                  <div className="text-xs font-bold text-cyan-400 font-mono-code">DIAGNOSIS: {selectedReport.fault_diagnosis}</div>
+                  <div className="text-xs opacity-80">{selectedReport.executive_summary}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-bold opacity-60 mb-2 font-mono-code">ReAct Thought Trace & Ollama Output:</div>
+                  <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono-code space-y-1 max-h-48 overflow-y-auto">
+                    {selectedReport.react_reasoning_trace?.map((t, idx) => (
+                      <div key={idx} className="opacity-80">&gt; {t}</div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-slate-800 font-mono-code text-xs">
+                  <button onClick={() => setSelectedReport(null)} className="px-4 py-1.5 bg-slate-800 opacity-80 rounded font-bold">Close</button>
+                  <button onClick={() => { handleToggleQuarantine(selectedReport.node_id, true); setSelectedReport(null); }} className="px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded font-bold">Sandbox Node</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <footer className="py-4 text-center text-xs opacity-50 font-mono-code border-t border-slate-900">
+            Aegis Silicon Enterprise AI Platform | Linear, Stripe & Vercel-Grade Modern SaaS Architecture
+          </footer>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
