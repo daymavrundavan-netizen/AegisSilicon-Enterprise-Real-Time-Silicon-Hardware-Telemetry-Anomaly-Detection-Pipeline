@@ -18,6 +18,12 @@ sudo systemctl enable docker
 sudo systemctl start docker
 sudo usermod -aG docker $USER
 
+# Allow HTTP and application ports through Ubuntu UFW
+sudo ufw allow 22/tcp 2>/dev/null || true
+sudo ufw allow 80/tcp 2>/dev/null || true
+sudo ufw allow 8000/tcp 2>/dev/null || true
+sudo ufw allow 8501/tcp 2>/dev/null || true
+
 # 2. Configure AWS S3 Bucket for Telemetry Archiving
 AWS_REGION=${AWS_REGION:-"us-east-1"}
 S3_BUCKET_NAME=${S3_BUCKET_NAME:-"aegissilicon-telemetry-archive-$(date +%s)"}
