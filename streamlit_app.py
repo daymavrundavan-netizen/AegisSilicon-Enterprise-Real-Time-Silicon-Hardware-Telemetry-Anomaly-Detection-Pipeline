@@ -20,6 +20,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from simulator.matrix_engine import FleetSimulator
+from simulator.fault_injector import IEEE754FaultInjector
 from streaming.spark_pipeline import StreamingWindowProcessor
 from ml.feature_engineer import TemporalFeatureEngineer
 from ml.anomaly_detector import SDCAnomalyDetector
@@ -34,17 +35,14 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Dark Enterprise Glassmorphism CSS with Forced High-Contrast Colors
+# Dark Enterprise Glassmorphism CSS
 st.markdown("""
 <style>
-    /* Global Base Colors */
     .stAppViewContainer { background-color: #030712 !important; color: #f3f4f6 !important; }
     [data-testid="stSidebar"] { background-color: #090d16 !important; border-right: 1px solid rgba(255, 255, 255, 0.1) !important; }
     
-    /* Typography */
     h1, h2, h3, h4, h5, h6, p, span, label { color: #f3f4f6 !important; font-family: 'Inter', sans-serif !important; }
     
-    /* Metrics Custom Styling */
     [data-testid="stMetric"] {
         background: rgba(15, 23, 42, 0.95) !important;
         border: 1px solid rgba(6, 182, 212, 0.3) !important;
@@ -55,12 +53,10 @@ st.markdown("""
     [data-testid="stMetricValue"] { font-size: 24px !important; font-weight: 800 !important; color: #06b6d4 !important; font-family: monospace !important; }
     [data-testid="stMetricLabel"] { font-size: 11px !important; color: #94a3b8 !important; text-transform: uppercase !important; font-weight: 700 !important; }
 
-    /* Custom Badges */
     .badge-healthy { background-color: #064e3b; color: #34d399; padding: 4px 10px; border-radius: 6px; font-weight: bold; font-family: monospace; font-size: 11px; }
     .badge-degraded { background-color: #7f1d1d; color: #f87171; padding: 4px 10px; border-radius: 6px; font-weight: bold; font-family: monospace; font-size: 11px; }
     .badge-quarantined { background-color: #78350f; color: #fbbf24; padding: 4px 10px; border-radius: 6px; font-weight: bold; font-family: monospace; font-size: 11px; }
 
-    /* Pipeline Stage Boxes */
     .stage-card {
         background: rgba(15, 23, 42, 0.9);
         border: 1px solid rgba(255, 255, 255, 0.1);
@@ -69,10 +65,22 @@ st.markdown("""
         border-radius: 12px;
         margin-bottom: 12px;
     }
+    
+    .interactive-card {
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 16px;
+        transition: all 0.3s ease;
+    }
+    .interactive-card:hover {
+        border-color: rgba(6, 182, 212, 0.5);
+        box-shadow: 0 0 15px rgba(6, 182, 212, 0.2);
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize Session State Engine for Reliable Autonomous Local Execution across 500 nodes
+# Initialize Session State Engine for 500 Edge Nodes
 if "fleet_sim" not in st.session_state:
     st.session_state.fleet_sim = FleetSimulator(num_nodes=500, num_corrupted_nodes=15, target_records_per_sec=100000)
     st.session_state.window_proc = StreamingWindowProcessor(window_sec=2.0)
@@ -83,6 +91,10 @@ if "fleet_sim" not in st.session_state:
     st.session_state.telemetry_history = []
     st.session_state.audit_logs = []
     st.session_state.node_statuses = {f"gpu-node-{i+1:03d}": ("DEGRADED" if i < 15 else "HEALTHY") for i in range(500)}
+    st.session_state.selected_node_modal = None
+    st.session_state.chat_history = [
+        {"role": "assistant", "content": "👋 Hello! I am Aegis AI Operations Copilot powered by LangChain RAG. How can I assist you with your 500-node AI infrastructure today?"}
+    ]
 
 API_BASE = os.getenv("API_BASE", "http://backend:8000" if (os.path.exists("/.dockerenv") or os.getenv("IN_DOCKER")) else "http://localhost:8000")
 
@@ -102,21 +114,19 @@ api_online = active_api_base is not None
 if api_online:
     API_BASE = active_api_base
 
-# Run Local Simulation Step if API is offline
+# Step Local Simulation
 def step_local_simulation():
     batch = st.session_state.fleet_sim.generate_fleet_telemetry()
     now = time.time()
     
-    for rec in batch[:20]: # Sample for chart display
+    for rec in batch[:30]:
         st.session_state.window_proc.add_record(rec)
         st.session_state.telemetry_history.append(rec)
-        if len(st.session_state.telemetry_history) > 80:
+        if len(st.session_state.telemetry_history) > 100:
             st.session_state.telemetry_history.pop(0)
 
-    # Archive to S3 every step
     st.session_state.s3_mgr.archive_telemetry_batch(batch)
 
-    # Process ML Anomaly Windows
     windows = st.session_state.window_proc.process_and_flush_windows()
     for w in windows:
         nid = w["node_id"]
@@ -141,18 +151,17 @@ def step_local_simulation():
 
 step_local_simulation()
 
-# Fetch Active Telemetry State
+# Fetch Data
 if api_online:
     try:
         overview = requests.get(f"{API_BASE}/api/v1/overview").json()
         nodes_data = requests.get(f"{API_BASE}/api/v1/nodes").json()
-        history_data = requests.get(f"{API_BASE}/api/telemetry/history?limit=80").json()
+        history_data = requests.get(f"{API_BASE}/api/telemetry/history?limit=100").json()
         s3_data = requests.get(f"{API_BASE}/api/v1/storage").json()
     except Exception:
         api_online = False
 
 if not api_online:
-    # Use Local State across 500 Edge Nodes
     nodes_data = []
     degraded_ct = 0
     quarantine_ct = 0
@@ -160,7 +169,7 @@ if not api_online:
         if status == "DEGRADED": degraded_ct += 1
         if status == "QUARANTINED": quarantine_ct += 1
         nodes_data.append({
-            "node_id": nid, "status": status, "current_temperature": 68.5 if status=="DEGRADED" else 62.0,
+            "node_id": nid, "status": status, "current_temperature": 74.2 if status=="DEGRADED" else 62.0,
             "current_voltage": 1.15, "sdc_fault_count": 1 if status != "HEALTHY" else 0, "total_batches": 1280
         })
     health_idx = max(0.0, round(100.0 - (degraded_ct * 2.0 + quarantine_ct * 1.5), 1))
@@ -173,290 +182,320 @@ if not api_online:
     s3_data = st.session_state.s3_mgr.get_recent_s3_landings()
 
 
-# Sidebar Navigation & Controls
+# Sidebar Navigation
 st.sidebar.markdown("## ⚡ AEGIS SILICON")
 st.sidebar.caption("Enterprise AI Infrastructure Platform")
 
 auto_refresh = st.sidebar.checkbox("🔄 Live Stream Auto-Refresh (1.5s)", value=True)
 refresh_rate = st.sidebar.slider("Polling Interval (seconds)", 1.0, 5.0, 1.5, 0.5)
 
-selected_view = st.sidebar.radio(
+selected_tab = st.sidebar.radio(
     "Operations Modules",
     [
-        "📊 Executive Overview & 500 Nodes",
-        "⚡ Interactive SDC Fault Injector",
-        "📈 TimescaleDB & Power BI Analytics",
-        "🤖 AI Operations Assistant",
+        "📊 Fleet Topology (500 Nodes)",
+        "💥 Interactive Bit-Flip & SDC Injector",
+        "📈 Live Telemetry & TimescaleDB",
+        "📥 Power BI & Snowflake Analytics",
+        "🤖 AI SRE Operations Copilot",
         "☁️ S3 Data Lake Archives"
     ]
 )
 
 st.sidebar.markdown("---")
-st.sidebar.markdown(f"**Execution Mode**: `{'FastAPI REST API' if api_online else 'Local Standalone Engine'}`")
+st.sidebar.markdown(f"**Backend Status**: `{'🟢 Connected to REST API' if api_online else '⚡ Local Engine Active'}`")
 st.sidebar.markdown("📖 **[OpenAPI & Swagger Docs](http://35.168.59.52:8000/docs)**")
 
 
-# Main Top Title Header
+# Header
 st.title("⚡ Aegis Silicon Operations Center")
 st.caption("AWS EC2 • Apache Kafka • PySpark Streaming (100,000+ rec/s across 500 Edge Nodes) • TimescaleDB Hypertables (-40% Latency) • Snowflake • Power BI")
 
-# Top KPI Metric Cards
+# Top KPI Metric Row
 m1, m2, m3, m4, m5 = st.columns(5)
 m1.metric("Health Index", f"{overview['cluster_health_score']}%", overview['system_status'])
-m2.metric("Ingestion Rate", f"{overview['cluster_throughput_rec_sec']:,} rec/s", "PySpark Stream")
-m3.metric("Edge Fleet", f"{overview['total_nodes']} Nodes", f"{overview['healthy_nodes']} Healthy")
-m4.metric("Active SDC Drift", f"{overview['degraded_nodes']} Degraded")
+m2.metric("Ingestion Throughput", f"{overview['cluster_throughput_rec_sec']:,} rec/s", "PySpark Stream")
+m3.metric("Compute Fleet", f"{overview['total_nodes']} Nodes", f"{overview['healthy_nodes']} Healthy")
+m4.metric("Active SDC Risk", f"{overview['degraded_nodes']} Degraded")
 m5.metric("TimescaleDB Latency", "-40% Write Latency", "Hypertable Active")
 
 st.markdown("---")
 
 
-# ================= MODULE 1: EXECUTIVE OVERVIEW & 500 NODES =================
-if selected_view == "📊 Executive Overview & 500 Nodes":
-    st.subheader("🔗 End-to-End Production Pipeline Architecture")
+# ================= MODULE 1: FLEET TOPOLOGY (500 NODES) =================
+if selected_tab == "📊 Fleet Topology (500 Nodes)":
+    st.subheader("🖥️ Edge GPU Compute Fleet Topology (500 Nodes)")
     
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.markdown("""
-        <div class="stage-card">
-            <h4 style="color:#06b6d4;margin:0;">1. Kafka & PySpark</h4>
-            <p style="font-size:12px;color:#cbd5e1;margin-top:6px;">100,000+ rec/sec matrix GEMM telemetry streamed from 500 Edge GPU Nodes on AWS EC2.</p>
-        </div>
-        """, unsafe_allow_html=True)
-    with c2:
-        st.markdown("""
-        <div class="stage-card" style="border-top-color:#f59e0b;">
-            <h4 style="color:#f59e0b;margin:0;">2. TimescaleDB & S3</h4>
-            <p style="font-size:12px;color:#cbd5e1;margin-top:6px;">Persisted raw micro-batches into AWS S3 & ingested windowed metrics into TimescaleDB (-40% write latency).</p>
-        </div>
-        """, unsafe_allow_html=True)
-    with c3:
-        st.markdown("""
-        <div class="stage-card" style="border-top-color:#ef4444;">
-            <h4 style="color:#ef4444;margin:0;">3. Isolation Forest ML</h4>
-            <p style="font-size:12px;color:#cbd5e1;margin-top:6px;">Scikit-learn statistical model & Isolation Forest detect rolling error spikes (> 1e-5).</p>
-        </div>
-        """, unsafe_allow_html=True)
-    with c4:
-        st.markdown("""
-        <div class="stage-card" style="border-top-color:#10b981;">
-            <h4 style="color:#10b981;margin:0;">4. LangChain RAG AI</h4>
-            <p style="font-size:12px;color:#cbd5e1;margin-top:6px;">Autonomous ReAct agent fences corrupted nodes & auto-generates context-aware incident reports.</p>
-        </div>
-        """, unsafe_allow_html=True)
+    col_search, col_status, col_page = st.columns([2, 1, 1])
+    with col_search:
+        search_query = st.text_input("🔍 Search Node ID (e.g., gpu-node-042)", "").strip().lower()
+    with col_status:
+        filter_status = st.selectbox("Status Filter", ["ALL", "HEALTHY", "DEGRADED", "QUARANTINED"])
+    with col_page:
+        page_num = st.number_input("Page (12 nodes/page)", min_value=1, max_value=42, value=1)
 
-    st.markdown("### 📈 Real-Time Ingestion & FP32 Telemetry Graph")
-    if history_data:
-        df_hist = pd.DataFrame(history_data)
-        df_hist['time_str'] = pd.to_datetime(df_hist['timestamp'], unit='s').dt.strftime('%H:%M:%S')
-        
-        g1, g2 = st.columns([2, 1])
-        with g1:
-            fig_err = px.line(
-                df_hist, x='time_str', y='relative_error', color='node_id',
-                title="FP32 Relative Error Stream (Log Scale)", log_y=True, height=320
-            )
-            fig_err.update_layout(template="plotly_dark", margin=dict(l=20, r=20, t=40, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(15,23,42,0.6)')
-            st.plotly_chart(fig_err, use_container_width=True)
-        with g2:
-            fig_temp = px.line(
-                df_hist, x='time_str', y='temperature_c', color='node_id',
-                title="GPU Thermal Trend (°C)", height=320
-            )
-            fig_temp.update_layout(template="plotly_dark", margin=dict(l=20, r=20, t=40, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(15,23,42,0.6)')
-            st.plotly_chart(fig_temp, use_container_width=True)
+    filtered = nodes_data
+    if search_query:
+        filtered = [n for n in filtered if search_query in n['node_id'].lower()]
+    if filter_status != "ALL":
+        filtered = [n for n in filtered if n.get('status') == filter_status]
 
-    st.markdown("### 🖥️ Edge Compute Fleet Topology Grid (500 Nodes)")
-    
-    filter_c1, filter_c2 = st.columns([2, 1])
-    with filter_c1:
-        search_term = st.text_input("🔍 Search Node (e.g. gpu-node-001)", value="").strip().lower()
-    with filter_c2:
-        status_filter = st.selectbox("Filter Status", ["ALL", "HEALTHY", "DEGRADED", "QUARANTINED"])
+    start_idx = (page_num - 1) * 12
+    end_idx = start_idx + 12
+    page_nodes = filtered[start_idx:end_idx]
 
-    filtered_nodes = nodes_data
-    if search_term:
-        filtered_nodes = [n for n in filtered_nodes if search_term in n['node_id'].lower()]
-    if status_filter != "ALL":
-        filtered_nodes = [n for n in filtered_nodes if n.get('status') == status_filter]
+    st.caption(f"Showing nodes {start_idx+1} to {min(end_idx, len(filtered))} of {len(filtered)} matching compute nodes:")
 
-    st.caption(f"Displaying top 12 of {len(filtered_nodes)} matching edge nodes across 500 total compute nodes:")
-    
-    if filtered_nodes:
-        grid_cols = st.columns(4)
-        for idx, n in enumerate(filtered_nodes[:12]):
-            with grid_cols[idx % 4]:
-                st_name = n.get("status", "HEALTHY")
+    if page_nodes:
+        cols = st.columns(4)
+        for idx, n in enumerate(page_nodes):
+            with cols[idx % 4]:
+                st_val = n.get("status", "HEALTHY")
                 b_class = "badge-healthy"
-                if st_name == "DEGRADED": b_class = "badge-degraded"
-                if st_name == "QUARANTINED": b_class = "badge-quarantined"
-                
+                if st_val == "DEGRADED": b_class = "badge-degraded"
+                if st_val == "QUARANTINED": b_class = "badge-quarantined"
+
                 st.markdown(f"""
-                <div style="background:rgba(15,23,42,0.9);border:1px solid rgba(255,255,255,0.1);padding:14px;border-radius:12px;margin-bottom:10px;">
+                <div class="interactive-card">
                     <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <strong style="color:#f3f4f6;font-family:monospace;">{n['node_id']}</strong>
-                        <span class="{b_class}">{st_name}</span>
+                        <strong style="color:#f3f4f6;font-family:monospace;font-size:14px;">{n['node_id']}</strong>
+                        <span class="{b_class}">{st_val}</span>
                     </div>
-                    <div style="font-size:12px;color:#94a3b8;margin-top:8px;font-family:monospace;">
-                        Temp: <b style="color:#f59e0b;">{n.get('current_temperature', 62.0):.1f}°C</b> | Volt: <b style="color:#3b82f6;">{n.get('current_voltage', 1.15):.3f}V</b><br/>
-                        Faults: <b style="color:#ef4444;">{n.get('sdc_fault_count', 0)}</b>
+                    <div style="font-size:12px;color:#94a3b8;margin-top:10px;font-family:monospace;">
+                        Temp: <b style="color:#f59e0b;">{n.get('current_temperature', 62.0):.1f}°C</b><br/>
+                        Volt: <b style="color:#3b82f6;">{n.get('current_voltage', 1.15):.3f}V</b><br/>
+                        SDC Faults: <b style="color:#ef4444;">{n.get('sdc_fault_count', 0)}</b>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                b1, b2 = st.columns(2)
-                with b1:
-                    is_q = (st_name == "QUARANTINED")
-                    if st.button("Restore" if is_q else "Sandbox", key=f"btn_q_{n['node_id']}"):
+                b_col1, b_col2 = st.columns(2)
+                with b_col1:
+                    is_quar = (st_val == "QUARANTINED")
+                    btn_label = "Unsandbox" if is_quar else "Sandbox"
+                    if st.button(btn_label, key=f"q_{n['node_id']}"):
                         if api_online:
-                            requests.post(f"{API_BASE}/api/nodes/{n['node_id']}/quarantine", json={"quarantine": not is_q})
+                            requests.post(f"{API_BASE}/api/nodes/{n['node_id']}/quarantine", json={"quarantine": not is_quar})
                         else:
-                            st.session_state.node_statuses[n['node_id']] = "HEALTHY" if is_q else "QUARANTINED"
-                            st.session_state.fleet_sim.set_node_quarantine(n['node_id'], not is_q)
+                            st.session_state.node_statuses[n['node_id']] = "HEALTHY" if is_quar else "QUARANTINED"
+                            st.session_state.fleet_sim.set_node_quarantine(n['node_id'], not is_quar)
+                        st.success(f"Updated {n['node_id']} state!")
+                        time.sleep(0.3)
                         st.rerun()
-                with b2:
-                    if st.button("Diagnose", key=f"btn_diag_{n['node_id']}"):
-                        if api_online:
-                            rep = requests.post(f"{API_BASE}/api/agent/diagnose", json={"node_id": n['node_id']}).json()
-                        else:
-                            rep = st.session_state.agent.generate_diagnostic_report({
-                                "node_id": n['node_id'], "anomaly_risk_score": 0.94, "feature_snapshot": {}
-                            })
-                        st.json(rep)
+                with b_col2:
+                    if st.button("Diagnose", key=f"diag_{n['node_id']}"):
+                        st.session_state.selected_node_modal = n['node_id']
 
-
-# ================= MODULE 2: INTERACTIVE SDC FAULT INJECTOR =================
-elif selected_view == "⚡ Interactive SDC Fault Injector":
-    st.subheader("💥 SDC Hardware Fault Injector & IEEE-754 Bit Visualizer")
-    st.caption("Inject microscopic hardware bit-flips into matrix calculation registers & trigger closed-loop AI isolation.")
-
-    i1, i2 = st.columns(2)
-    with i1:
-        st.markdown("#### Fault Injector Console")
-        node_opts = [n['node_id'] for n in nodes_data] if nodes_data else ["gpu-node-001"]
-        target_n = st.selectbox("Target Compute Node (500 Nodes)", node_opts)
-        
-        region = st.radio("Target Bit-Flip Region", ["mantissa", "exponent", "sign"], horizontal=True)
-
-        if st.button("💥 Inject Hardware Bit-Flip", type="primary"):
-            if api_online:
-                requests.post(f"{API_BASE}/api/nodes/{target_n}/inject-fault", json={"fault_type": region})
-            else:
-                st.session_state.fleet_sim.nodes[target_n].is_degrading = True
-                st.session_state.node_statuses[target_n] = "DEGRADED"
-            st.success(f"Injected {region.upper()} SDC fault into {target_n}!")
-            time.sleep(0.4)
-            st.rerun()
-
-        if st.button("🟢 Restore & Clear Fault"):
-            if api_online:
-                requests.post(f"{API_BASE}/api/nodes/{target_n}/quarantine", json={"quarantine": False})
-            else:
-                st.session_state.node_statuses[target_n] = "HEALTHY"
-                st.session_state.fleet_sim.set_node_quarantine(target_n, False)
-            st.success(f"Restored node {target_n}")
-            time.sleep(0.4)
-            st.rerun()
-
-    with i2:
-        st.markdown("#### IEEE-754 32-Bit Binary Bit Representation")
-        active_anomalies = [h for h in history_data if h.get('has_fault_injected') or h.get('relative_error', 0) > 1e-5]
-        if active_anomalies:
-            latest_f = active_anomalies[-1]
-            f_det = latest_f.get('fault_details', {})
-            st.write(f"**Target Node**: `{latest_f['node_id']}` | **Relative Error**: `{latest_f.get('relative_error', 0):.4e}`")
-            if f_det and f_det.get('orig_binary'):
-                st.code(
-                    f"Clean Bits:     {f_det['orig_binary']} ({f_det.get('original_value')})\n"
-                    f"Corrupted Bits: {f_det['corrupt_binary']} ({f_det.get('corrupted_value'):.6f})\n"
-                    f"Matrix Cell:    {f_det.get('matrix_cell_index')}", language="text"
-                )
-            else:
-                st.info("Fault injected into active computation pipeline...")
+    # Modal Node Diagnosis Expander
+    if st.session_state.selected_node_modal:
+        st.markdown("---")
+        st.subheader(f"🤖 Autonomous AI Diagnostic Report: `{st.session_state.selected_node_modal}`")
+        if api_online:
+            rep = requests.post(f"{API_BASE}/api/agent/diagnose", json={"node_id": st.session_state.selected_node_modal}).json()
         else:
-            st.info("No active SDC bit-flips detected. Inject a fault using the console on the left.")
+            rep = st.session_state.agent.generate_diagnostic_report({
+                "node_id": st.session_state.selected_node_modal, "anomaly_risk_score": 0.94, "feature_snapshot": {}
+            })
+        
+        st.json(rep)
+        if st.button("Close Diagnosis Panel"):
+            st.session_state.selected_node_modal = None
+            st.rerun()
 
 
-# ================= MODULE 3: TIMESCALEDB & POWER BI ANALYTICS =================
-elif selected_view == "📈 TimescaleDB & Power BI Analytics":
-    st.subheader("📈 TimescaleDB Hypertables & Power BI Analytics Exporter")
-    st.caption("Live high-velocity windowed metrics ingested into TimescaleDB & historical analytics exported to Power BI.")
+# ================= MODULE 2: INTERACTIVE BIT-FLIP & SDC INJECTOR =================
+elif selected_tab == "💥 Interactive Bit-Flip & SDC Injector":
+    st.subheader("💥 IEEE-754 32-Bit Microscopic Register Bit-Flip Simulator")
+    st.caption("Interactive hardware fault injector: select any float value, flip bits, and observe real-time SDC propagation.")
+
+    b_col1, b_col2 = st.columns(2)
+    with b_col1:
+        st.markdown("#### 🛠️ Live Bit-Flip Playground")
+        input_val = st.number_input("Base Register Floating-Point Value", value=3.14159265, format="%.8f")
+        bit_index = st.slider("Bit Position to Invert (0 = LSB Mantissa, 31 = MSB Sign)", 0, 31, 23)
+
+        bits = IEEE754FaultInjector.float_to_bits(input_val)
+        corrupted_bits = bits ^ (1 << bit_index)
+        corrupted_val = IEEE754FaultInjector.bits_to_float(corrupted_bits)
+        rel_err = abs(corrupted_val - input_val) / (abs(input_val) + 1e-9)
+
+        sign_b = (bits >> 31) & 1
+        exp_b = (bits >> 23) & 0xFF
+        man_b = bits & 0x7FFFFF
+
+        c_sign_b = (corrupted_bits >> 31) & 1
+        c_exp_b = (corrupted_bits >> 23) & 0xFF
+        c_man_b = corrupted_bits & 0x7FFFFF
+
+        bit_region = "MANTISSA (Precision Loss)"
+        if bit_index == 31: bit_region = "SIGN (Sign Inversion)"
+        elif 23 <= bit_index <= 30: bit_region = "EXPONENT (Huge Value Explosion)"
+
+        st.markdown(f"**Target Bit Region**: `<span style='color:#06b6d4;'>{bit_region}</span>`", unsafe_allow_html=True)
+        st.metric("Relative Error Spike", f"{rel_err:.4e}", "SDC Anomaly Triggered" if rel_err > 1e-5 else "Clean")
+
+        node_opts = [n['node_id'] for n in nodes_data] if nodes_data else ["gpu-node-001"]
+        target_inj = st.selectbox("Inject into Node Fleet", node_opts)
+        
+        if st.button("🚀 Inject Bit-Flip into Fleet Pipeline", type="primary"):
+            if api_online:
+                requests.post(f"{API_BASE}/api/nodes/{target_inj}/inject-fault", json={"fault_type": "mantissa" if bit_index < 23 else "exponent"})
+            else:
+                st.session_state.fleet_sim.nodes[target_inj].is_degrading = True
+                st.session_state.node_statuses[target_inj] = "DEGRADED"
+            st.success(f"Injected SDC fault into {target_inj} register!")
+            time.sleep(0.4)
+            st.rerun()
+
+    with b_col2:
+        st.markdown("#### 🔬 IEEE-754 32-Bit Binary Breakdown")
+        st.code(
+            f"ORIGINAL VALUE:  {input_val:.8f}\n"
+            f"Sign [31]:       {sign_b:01b}\n"
+            f"Exponent [30-23]:{exp_b:08b} (Dec: {exp_b})\n"
+            f"Mantissa [22-0]: {man_b:023b}\n"
+            f"Binary 32-Bit:   {bits:032b}\n\n"
+            f"CORRUPTED VALUE: {corrupted_val:.8f}\n"
+            f"Sign [31]:       {c_sign_b:01b}\n"
+            f"Exponent [30-23]:{c_exp_b:08b} (Dec: {c_exp_b})\n"
+            f"Mantissa [22-0]: {c_man_b:023b}\n"
+            f"Binary 32-Bit:   {corrupted_bits:032b}",
+            language="text"
+        )
+
+
+# ================= MODULE 3: LIVE TELEMETRY & TIMESCALEDB =================
+elif selected_tab == "📈 Live Telemetry & TimescaleDB":
+    st.subheader("📈 Real-Time Multi-Node Telemetry & TimescaleDB Performance")
+
+    metric_choice = st.selectbox("Select Graph Telemetry Metric", ["Relative Error (Log Scale)", "GPU Temperature (°C)", "Supply Voltage (V)", "Power Consumption (W)"])
+
+    if history_data:
+        df_h = pd.DataFrame(history_data)
+        df_h['time_str'] = pd.to_datetime(df_h['timestamp'], unit='s').dt.strftime('%H:%M:%S')
+
+        y_col = 'relative_error'
+        log_scale = True
+        if "Temperature" in metric_choice: y_col = 'temperature_c'; log_scale = False
+        elif "Voltage" in metric_choice: y_col = 'voltage_v'; log_scale = False
+        elif "Power" in metric_choice: y_col = 'power_w'; log_scale = False
+
+        fig = px.line(df_h, x='time_str', y=y_col, color='node_id', title=f"Real-Time Stream: {metric_choice}", log_y=log_scale, height=400)
+        fig.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(15,23,42,0.6)')
+        st.plotly_chart(fig, use_container_width=True)
 
     t1, t2 = st.columns(2)
     with t1:
-        st.markdown("#### TimescaleDB Hypertable Write Performance")
+        st.markdown("#### ⚡ TimescaleDB Hypertable Optimization")
         st.json({
             "status": "HYPERTABLE_ACTIVE",
             "hypertable_name": "telemetry_metrics_hypertable",
-            "write_latency_reduction": "-40.0% (vs standard PostgreSQL)",
-            "pyspark_throughput_rec_sec": 100000,
-            "active_edge_nodes": 500,
-            "partition_chunk_time_interval": "1 Hour"
+            "chunks_created": 48,
+            "write_latency_reduction_pct": 40.0,
+            "ingestion_rate_rec_sec": 100000,
+            "active_nodes": 500
         })
     with t2:
-        st.markdown("#### Snowflake Enterprise Data Warehouse")
+        st.markdown("#### 🌲 Isolation Forest Anomaly Engine")
+        st.json({
+            "model_type": "Scikit-Learn IsolationForest",
+            "contamination_rate": 0.05,
+            "rolling_window_seconds": 2.0,
+            "zscore_threshold": 3.5,
+            "sdc_quarantine_action": "AUTOMATED_FENCE_NODE"
+        })
+
+
+# ================= MODULE 4: POWER BI & SNOWFLAKE ANALYTICS =================
+elif selected_tab == "📥 Power BI & Snowflake Analytics":
+    st.subheader("📥 Power BI Executive Dashboards & Snowflake Analytics Export")
+    st.caption("Ingest live windowed metrics into TimescaleDB and historical analytics into Snowflake.")
+
+    p1, p2 = st.columns(2)
+    with p1:
+        st.markdown("#### ❄️ Snowflake Data Warehouse Sync")
         st.json({
             "warehouse": "AEGIS_SILICON_ANALYTICS_WH",
             "database": "SILICON_TELEMETRY_DB",
             "schema": "RAW_STREAMING",
             "table": "HISTORICAL_SDC_METRICS",
-            "compression": "4.2x (Parquet on S3)",
-            "total_archived_records": 12850000
+            "total_records_archived": 12850000,
+            "compression_ratio": "4.2x (Parquet on S3)"
         })
+    with p2:
+        st.markdown("#### 📊 Power BI Dataset Exporter")
+        st.markdown("Export 500-node cluster metrics directly for Power BI, Tableau, or Excel reporting:")
+        df_pbi = pd.DataFrame(nodes_data)
+        csv_data = df_pbi.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download Power BI Executive Dataset (CSV)",
+            data=csv_data,
+            file_name="aegis_silicon_500nodes_dataset.csv",
+            mime="text/csv"
+        )
 
     st.markdown("---")
-    st.markdown("#### 📥 Power BI Executive Dashboard Connector")
-    st.caption("Download live tabular cluster metrics ready for Power BI & Tableau import:")
-
-    df_pbi = pd.DataFrame(nodes_data)
-    csv_bytes = df_pbi.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Download Power BI Dataset (CSV)",
-        data=csv_bytes,
-        file_name="aegis_silicon_powerbi_dataset.csv",
-        mime="text/csv"
-    )
+    st.markdown("#### Live 500-Node Dataset Preview")
+    st.dataframe(df_pbi, use_container_width=True)
 
 
-# ================= MODULE 4: AI OPERATIONS ASSISTANT =================
-elif selected_view == "🤖 AI Operations Assistant":
-    st.subheader("💬 Aegis AI Operations Copilot (LangChain RAG)")
-    st.caption("Ask questions about cluster health, 500 edge nodes, or ChromaDB hardware runbooks.")
+# ================= MODULE 5: AI SRE OPERATIONS COPILOT =================
+elif selected_tab == "🤖 AI SRE Operations Copilot":
+    st.subheader("💬 Aegis AI SRE Operations Copilot (LangChain RAG)")
+    st.caption("Interactive SRE assistant powered by ChromaDB vector search & ReAct reasoning engine.")
 
-    if "messages" not in st.session_state:
-        st.session_state.messages = [
-            {"role": "assistant", "content": "👋 Hello! I am Aegis AI Operations Copilot powered by LangChain RAG. How can I assist you with your 500-node AI infrastructure today?"}
-        ]
+    st.markdown("#### Quick Action Commands")
+    chip1, chip2, chip3 = st.columns(3)
+    with chip1:
+        if st.button("⚡ Diagnose Degraded Nodes"):
+            q_text = "What is the status of degraded nodes and their SDC fault risks?"
+            st.session_state.chat_history.append({"role": "user", "content": q_text})
+            rep = st.session_state.agent.generate_chat_response(q_text, {"total_nodes": 500, "degraded_nodes": 15})["response"]
+            st.session_state.chat_history.append({"role": "assistant", "content": rep})
+            st.rerun()
+    with chip2:
+        if st.button("📖 ChromaDB Hardware Runbook"):
+            q_text = "What is the hardware remediation runbook for IEEE-754 exponent SDC bit-flips?"
+            st.session_state.chat_history.append({"role": "user", "content": q_text})
+            rep = st.session_state.agent.generate_chat_response(q_text, {"total_nodes": 500})["response"]
+            st.session_state.chat_history.append({"role": "assistant", "content": rep})
+            st.rerun()
+    with chip3:
+        if st.button("📊 Summarize 500 Fleet Health"):
+            q_text = "Summarize the cluster health index, PySpark streaming rate, and S3 landings."
+            st.session_state.chat_history.append({"role": "user", "content": q_text})
+            rep = st.session_state.agent.generate_chat_response(q_text, {"total_nodes": 500, "health": overview['cluster_health_score']})["response"]
+            st.session_state.chat_history.append({"role": "assistant", "content": rep})
+            st.rerun()
 
-    for m in st.session_state.messages:
-        with st.chat_message(m["role"]):
-            st.write(m["content"])
+    for msg in st.session_state.chat_history:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
 
-    if user_q := st.chat_input("Ask Aegis AI Assistant..."):
-        st.session_state.messages.append({"role": "user", "content": user_q})
+    if user_prompt := st.chat_input("Ask SRE Copilot..."):
+        st.session_state.chat_history.append({"role": "user", "content": user_prompt})
         with st.chat_message("user"):
-            st.write(user_q)
+            st.write(user_prompt)
 
         if api_online:
-            res = requests.post(f"{API_BASE}/api/v1/assistant/chat", json={"query": user_q}).json()
-            reply = res.get("response", "No response from AI Assistant.")
+            res = requests.post(f"{API_BASE}/api/v1/assistant/chat", json={"query": user_prompt}).json()
+            reply_txt = res.get("response", "No response.")
         else:
             live_ctx = {
                 "total_nodes": 500, "degraded_nodes": [k for k,v in st.session_state.node_statuses.items() if v=="DEGRADED"],
                 "quarantined_nodes": [k for k,v in st.session_state.node_statuses.items() if v=="QUARANTINED"],
                 "cluster_health_score": overview['cluster_health_score'], "throughput": 100000, "s3_count": len(s3_data)
             }
-            reply = st.session_state.agent.generate_chat_response(user_q, live_ctx)["response"]
+            reply_txt = st.session_state.agent.generate_chat_response(user_prompt, live_ctx)["response"]
 
-        st.session_state.messages.append({"role": "assistant", "content": reply})
+        st.session_state.chat_history.append({"role": "assistant", "content": reply_txt})
         with st.chat_message("assistant"):
-            st.write(reply)
+            st.write(reply_txt)
 
 
-# ================= MODULE 5: S3 DATA LAKE ARCHIVES =================
-elif selected_view == "☁️ S3 Data Lake Archives":
-    st.subheader("☁️ Amazon S3 Raw Micro-Batch Telemetry & Diagnostic Reports")
-    st.caption("Partitioned S3 Data Lake Layout: `s3://aegissilicon-telemetry-archive/raw_telemetry/year=2026/month=08/...`")
+# ================= MODULE 6: S3 DATA LAKE ARCHIVES =================
+elif selected_tab == "☁️ S3 Data Lake Archives":
+    st.subheader("☁️ Amazon S3 Telemetry Micro-Batches & Diagnostic Landings")
+    st.caption("Partitioned Layout: `s3://aegissilicon-telemetry-archive/raw_telemetry/year=2026/month=08/...`")
 
     if s3_data:
         df_s3 = pd.DataFrame(s3_data)

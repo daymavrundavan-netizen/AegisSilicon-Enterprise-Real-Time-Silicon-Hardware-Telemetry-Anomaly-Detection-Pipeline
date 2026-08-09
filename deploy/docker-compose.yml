@@ -28,6 +28,7 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile.backend
     ports:
+      - "80:8000"
       - "8000:8000"
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
