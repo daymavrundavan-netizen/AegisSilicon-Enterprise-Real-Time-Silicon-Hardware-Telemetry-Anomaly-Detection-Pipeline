@@ -32,6 +32,7 @@ fi
 
 # 3. Build & Launch AegisSilicon Container Stack
 echo "[3/4] Building and launching Docker Compose production stack..."
+docker compose -f deploy/docker-compose.yml down --remove-orphans 2>/dev/null || true
 docker compose -f deploy/docker-compose.yml up -d --build
 
 # 4. Deployment Complete Summary
