@@ -44,6 +44,8 @@ services:
     ports:
       - "8501:8501"
     environment:
+      - API_BASE=http://backend:8000
+      - IN_DOCKER=true
       - AWS_DEFAULT_REGION=us-east-1
       - S3_BUCKET_NAME=aegissilicon-telemetry-archive
     depends_on:

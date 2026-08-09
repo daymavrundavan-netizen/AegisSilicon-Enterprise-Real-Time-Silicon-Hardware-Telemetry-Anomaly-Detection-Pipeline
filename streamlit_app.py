@@ -85,16 +85,23 @@ if "fleet_sim" not in st.session_state:
     st.session_state.audit_logs = []
     st.session_state.node_statuses = {f"gpu-node-{i+1:03d}": ("DEGRADED" if i < 2 else "HEALTHY") for i in range(16)}
 
-# Check if external REST API is reachable
-API_BASE = "http://localhost:8000"
-def check_api_online():
-    try:
-        r = requests.get(f"{API_BASE}/api/v1/overview", timeout=0.8)
-        return r.status_code == 200
-    except Exception:
-        return False
+API_BASE = os.getenv("API_BASE", "http://backend:8000" if (os.path.exists("/.dockerenv") or os.getenv("IN_DOCKER")) else "http://localhost:8000")
 
-api_online = check_api_online()
+def get_active_api_base():
+    endpoints = [API_BASE, "http://backend:8000", "http://localhost:8000"]
+    for ep in endpoints:
+        try:
+            r = requests.get(f"{ep}/api/v1/overview", timeout=0.8)
+            if r.status_code == 200:
+                return ep
+        except Exception:
+            pass
+    return None
+
+active_api_base = get_active_api_base()
+api_online = active_api_base is not None
+if api_online:
+    API_BASE = active_api_base
 
 # Run Local Simulation Step if API is offline
 def step_local_simulation():
@@ -182,6 +189,7 @@ selected_view = st.sidebar.radio(
 
 st.sidebar.markdown("---")
 st.sidebar.markdown(f"**Execution Mode**: `{'FastAPI REST API' if api_online else 'Local Standalone Engine'}`")
+st.sidebar.markdown("📖 **[OpenAPI & Swagger Docs](http://localhost:8000/docs)**")
 
 
 # Main Top Title Header

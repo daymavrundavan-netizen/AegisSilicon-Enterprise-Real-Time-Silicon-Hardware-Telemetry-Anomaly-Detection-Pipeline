@@ -91,140 +91,153 @@ ws_manager = ConnectionManager()
 
 def run_background_pipeline():
     """Continuous background loop processing telemetry, landing raw data to S3, and executing autonomous AI sandboxing."""
-    db = SessionLocal()
-    try:
-        for node_id in fleet_sim.nodes.keys():
-            node_record = db.query(NodeStatusModel).filter(NodeStatusModel.node_id == node_id).first()
-            if not node_record:
-                db.add(NodeStatusModel(
-                    node_id=node_id,
-                    status="DEGRADED" if fleet_sim.nodes[node_id].is_degrading else "HEALTHY",
-                    last_seen=time.time()
-                ))
-        db.commit()
-
-        s3_flush_timer = time.time()
-
-        while True:
-            raw_batch = fleet_sim.generate_fleet_telemetry()
-            now = time.time()
-
-            for rec in raw_batch:
-                window_processor.add_record(rec)
-                latest_telemetry_cache.append(rec)
-                if len(latest_telemetry_cache) > 400:
-                    latest_telemetry_cache.pop(0)
-
-                t_model = TelemetryRecordModel(
-                    node_id=rec["node_id"],
-                    timestamp=rec["timestamp"],
-                    operation=rec.get("operation", "MATRIX_DOT_PRODUCT_FP32"),
-                    active_workload=rec.get("active_workload", "LLM_ATTENTION_KEY_VALUE_PROJECTION"),
-                    expected_norm=rec["expected_norm"],
-                    computed_norm=rec["computed_norm"],
-                    relative_error=rec["relative_error"],
-                    has_fault=rec["has_fault_injected"],
-                    fault_region=rec["fault_details"]["fault_region"] if rec.get("fault_details") else None,
-                    temperature_c=rec["temperature_c"],
-                    voltage_v=rec["voltage_v"]
-                )
-                db.add(t_model)
-
+    while True:
+        db = SessionLocal()
+        try:
+            for node_id in fleet_sim.nodes.keys():
+                node_record = db.query(NodeStatusModel).filter(NodeStatusModel.node_id == node_id).first()
+                if not node_record:
+                    db.add(NodeStatusModel(
+                        node_id=node_id,
+                        status="DEGRADED" if fleet_sim.nodes[node_id].is_degrading else "HEALTHY",
+                        last_seen=time.time()
+                    ))
             db.commit()
 
-            if now - s3_flush_timer >= 4.0:
-                s3_manager.archive_telemetry_batch(raw_batch)
-                s3_flush_timer = now
+            s3_flush_timer = time.time()
 
-            flushed_windows = window_processor.process_and_flush_windows()
+            while True:
+                try:
+                    raw_batch = fleet_sim.generate_fleet_telemetry()
+                    now = time.time()
 
-            for window in flushed_windows:
-                node_id = window["node_id"]
-                feat_dict = feature_engineer.process_node_window(node_id, window)
-                anom_result = anomaly_detector.detect_anomaly(feat_dict)
+                    for rec in raw_batch:
+                        window_processor.add_record(rec)
+                        latest_telemetry_cache.append(rec)
+                        if len(latest_telemetry_cache) > 400:
+                            latest_telemetry_cache.pop(0)
 
-                node_status = db.query(NodeStatusModel).filter(NodeStatusModel.node_id == node_id).first()
-                if node_status:
-                    node_status.last_seen = now
-                    node_status.total_batches += window["record_count"]
-                    node_status.current_temperature = window["mean_temperature"]
-                    node_status.current_voltage = window["mean_voltage"]
-
-                    if anom_result["is_sdc_risk"] and node_status.status != "QUARANTINED":
-                        report = agent.generate_diagnostic_report({
-                            "node_id": node_id,
-                            "anomaly_risk_score": anom_result["anomaly_risk_score"],
-                            "feature_snapshot": feat_dict
-                        })
-
-                        node_status.status = "QUARANTINED"
-                        node_status.sdc_fault_count += 1
-                        fleet_sim.set_node_quarantine(node_id, True)
-
-                        s3_url = s3_manager.upload_diagnostic_report(report)
-                        report["s3_archive_url"] = s3_url
-
-                        db_report = DiagnosticReportModel(
-                            report_id=report["report_id"],
-                            node_id=node_id,
-                            timestamp=now,
-                            fault_diagnosis=report["fault_diagnosis"],
-                            remediation_track=report["remediation_track"],
-                            urgency=report["urgency"],
-                            report_json=json.dumps(report)
+                        t_model = TelemetryRecordModel(
+                            node_id=rec["node_id"],
+                            timestamp=rec["timestamp"],
+                            operation=rec.get("operation", "MATRIX_DOT_PRODUCT_FP32"),
+                            active_workload=rec.get("active_workload", "LLM_ATTENTION_KEY_VALUE_PROJECTION"),
+                            expected_norm=rec["expected_norm"],
+                            computed_norm=rec["computed_norm"],
+                            relative_error=rec["relative_error"],
+                            has_fault=rec["has_fault_injected"],
+                            fault_region=rec["fault_details"]["fault_region"] if rec.get("fault_details") else None,
+                            temperature_c=rec["temperature_c"],
+                            voltage_v=rec["voltage_v"]
                         )
-                        db.add(db_report)
+                        db.add(t_model)
 
-                        auto_action = {
-                            "timestamp": now,
-                            "node_id": node_id,
-                            "risk_score": anom_result["anomaly_risk_score"],
-                            "diagnosis": report["fault_diagnosis"],
-                            "action": "AUTOMATED_AI_SANDBOX_QUARANTINE_EXECUTED",
-                            "s3_url": s3_url
-                        }
-                        autonomous_ai_actions.append(auto_action)
-                        if len(autonomous_ai_actions) > 50:
-                            autonomous_ai_actions.pop(0)
+                    db.commit()
+
+                    if now - s3_flush_timer >= 4.0:
+                        s3_manager.archive_telemetry_batch(raw_batch)
+                        s3_flush_timer = now
+
+                    flushed_windows = window_processor.process_and_flush_windows()
+
+                    for window in flushed_windows:
+                        node_id = window["node_id"]
+                        feat_dict = feature_engineer.process_node_window(node_id, window)
+                        anom_result = anomaly_detector.detect_anomaly(feat_dict)
+
+                        node_status = db.query(NodeStatusModel).filter(NodeStatusModel.node_id == node_id).first()
+                        if node_status:
+                            node_status.last_seen = now
+                            node_status.total_batches += window["record_count"]
+                            node_status.current_temperature = window["mean_temperature"]
+                            node_status.current_voltage = window["mean_voltage"]
+
+                            if anom_result["is_sdc_risk"] and node_status.status != "QUARANTINED":
+                                report = agent.generate_diagnostic_report({
+                                    "node_id": node_id,
+                                    "anomaly_risk_score": anom_result["anomaly_risk_score"],
+                                    "feature_snapshot": feat_dict
+                                })
+
+                                node_status.status = "QUARANTINED"
+                                node_status.sdc_fault_count += 1
+                                fleet_sim.set_node_quarantine(node_id, True)
+
+                                s3_url = s3_manager.upload_diagnostic_report(report)
+                                report["s3_archive_url"] = s3_url
+
+                                db_report = DiagnosticReportModel(
+                                    report_id=report["report_id"],
+                                    node_id=node_id,
+                                    timestamp=now,
+                                    fault_diagnosis=report["fault_diagnosis"],
+                                    remediation_track=report["remediation_track"],
+                                    urgency=report["urgency"],
+                                    report_json=json.dumps(report)
+                                )
+                                db.add(db_report)
+
+                                auto_action = {
+                                    "timestamp": now,
+                                    "node_id": node_id,
+                                    "risk_score": anom_result["anomaly_risk_score"],
+                                    "diagnosis": report["fault_diagnosis"],
+                                    "action": "AUTOMATED_AI_SANDBOX_QUARANTINE_EXECUTED",
+                                    "s3_url": s3_url
+                                }
+                                autonomous_ai_actions.append(auto_action)
+                                if len(autonomous_ai_actions) > 50:
+                                    autonomous_ai_actions.pop(0)
+
+                                if event_loop_ref and ws_manager.active_connections:
+                                    ws_payload = {
+                                        "type": "AUTONOMOUS_AI_SANDBOX_ACTION",
+                                        "timestamp": now,
+                                        "data": auto_action,
+                                        "report": report
+                                    }
+                                    asyncio.run_coroutine_threadsafe(ws_manager.broadcast(ws_payload), event_loop_ref)
+
+                            db.commit()
+
+                        if anom_result["is_sdc_risk"]:
+                            alert = AnomalyAlertModel(
+                                node_id=node_id,
+                                timestamp=now,
+                                anomaly_risk_score=anom_result["anomaly_risk_score"],
+                                is_sdc_risk=True,
+                                feature_snapshot_json=json.dumps(feat_dict),
+                                remediation_track="LOOP_B_NODE_QUARANTINE" if feat_dict["max_error_spike"] > 0.01 else "LOOP_A_DATA_SALVAGE",
+                                status="AUTONOMOUS_QUARANTINED"
+                            )
+                            db.add(alert)
+                            db.commit()
 
                         if event_loop_ref and ws_manager.active_connections:
                             ws_payload = {
-                                "type": "AUTONOMOUS_AI_SANDBOX_ACTION",
+                                "type": "WINDOW_ANOMALY_UPDATE",
                                 "timestamp": now,
-                                "data": auto_action,
-                                "report": report
+                                "data": anom_result,
+                                "node_status": node_status.status if node_status else "HEALTHY"
                             }
                             asyncio.run_coroutine_threadsafe(ws_manager.broadcast(ws_payload), event_loop_ref)
 
-                    db.commit()
-
-                if anom_result["is_sdc_risk"]:
-                    alert = AnomalyAlertModel(
-                        node_id=node_id,
-                        timestamp=now,
-                        anomaly_risk_score=anom_result["anomaly_risk_score"],
-                        is_sdc_risk=True,
-                        feature_snapshot_json=json.dumps(feat_dict),
-                        remediation_track="LOOP_B_NODE_QUARANTINE" if feat_dict["max_error_spike"] > 0.01 else "LOOP_A_DATA_SALVAGE",
-                        status="AUTONOMOUS_QUARANTINED"
-                    )
-                    db.add(alert)
-                    db.commit()
-
-                if event_loop_ref and ws_manager.active_connections:
-                    ws_payload = {
-                        "type": "WINDOW_ANOMALY_UPDATE",
-                        "timestamp": now,
-                        "data": anom_result,
-                        "node_status": node_status.status if node_status else "HEALTHY"
-                    }
-                    asyncio.run_coroutine_threadsafe(ws_manager.broadcast(ws_payload), event_loop_ref)
-
-            time.sleep(1.0)
-    except Exception as e:
-        print(f"[Background Pipeline Error] {e}")
-    finally:
-        db.close()
+                except Exception as tick_err:
+                    print(f"[Pipeline Tick Error] {tick_err}")
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+                
+                time.sleep(1.0)
+        except Exception as e:
+            print(f"[Background Pipeline Error] {e}")
+        finally:
+            try:
+                db.close()
+            except Exception:
+                pass
+            time.sleep(2.0)
 
 
 @app.on_event("startup")
