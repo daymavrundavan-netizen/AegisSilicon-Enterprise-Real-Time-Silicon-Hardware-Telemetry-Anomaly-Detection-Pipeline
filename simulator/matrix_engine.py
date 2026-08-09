@@ -103,7 +103,7 @@ class FleetSimulator:
     Manages a fleet of simulated GPU compute nodes generating 100,000 telemetry records per second.
     """
 
-    def __init__(self, num_nodes: int = 16, num_corrupted_nodes: int = 3, target_records_per_sec: int = 100000):
+    def __init__(self, num_nodes: int = 500, num_corrupted_nodes: int = 15, target_records_per_sec: int = 100000):
         self.target_records_per_sec = target_records_per_sec
         self.num_nodes = num_nodes
         self.nodes = {}
