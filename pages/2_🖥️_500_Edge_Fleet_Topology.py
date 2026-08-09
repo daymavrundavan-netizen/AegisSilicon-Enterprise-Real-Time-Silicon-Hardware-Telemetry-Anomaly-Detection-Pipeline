@@ -33,11 +33,13 @@ st.markdown("""
 st.title("🖥️ Edge GPU Compute Fleet Topology (500 Nodes)")
 st.caption("Interactive node explorer across 500 edge compute nodes on AWS EC2")
 
+if "diag_modal" not in st.session_state:
+    st.session_state.diag_modal = None
+
 if "fleet_sim" not in st.session_state:
     st.session_state.fleet_sim = FleetSimulator(num_nodes=500, num_corrupted_nodes=15, target_records_per_sec=100000)
     st.session_state.agent = SDCReActDiagnosticAgent()
     st.session_state.node_statuses = {f"gpu-node-{i+1:03d}": ("DEGRADED" if i < 15 else "HEALTHY") for i in range(500)}
-    st.session_state.diag_modal = None
 
 col1, col2, col3 = st.columns([2, 1, 1])
 with col1:
@@ -102,7 +104,7 @@ if display_nodes:
                 if st.button("Diagnose", key=f"btn_d_{n['node_id']}"):
                     st.session_state.diag_modal = n['node_id']
 
-if st.session_state.diag_modal:
+if st.session_state.get("diag_modal"):
     st.markdown("---")
     st.subheader(f"🤖 Diagnostic Report: `{st.session_state.diag_modal}`")
     rep = st.session_state.agent.generate_diagnostic_report({

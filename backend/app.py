@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 # Ensure project root is in sys.path
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -28,6 +29,13 @@ from ml.anomaly_detector import SDCAnomalyDetector
 from agent.react_agent import SDCReActDiagnosticAgent
 from aws.s3_manager import AWSS3Manager
 from backend.db import init_db, SessionLocal, NodeStatusModel, TelemetryRecordModel, AnomalyAlertModel, DiagnosticReportModel, AIModelMetricsModel
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 app = FastAPI(
     title="Aegis Silicon Enterprise AI Infrastructure Monitoring Platform",

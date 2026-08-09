@@ -96,9 +96,13 @@ class SDCReActDiagnosticAgent:
         query_clean = user_query.strip().lower()
         now_str = time.strftime("%H:%M:%S", time.localtime())
 
-        total_nodes = live_context.get("total_nodes", 16)
+        total_nodes = live_context.get("total_nodes", 500)
         degraded_nodes = live_context.get("degraded_nodes", [])
+        if isinstance(degraded_nodes, int):
+            degraded_nodes = [f"gpu-node-{i+1:03d}" for i in range(degraded_nodes)]
         quarantined_nodes = live_context.get("quarantined_nodes", [])
+        if isinstance(quarantined_nodes, int):
+            quarantined_nodes = [f"gpu-node-{i+1:03d}" for i in range(quarantined_nodes)]
         health_score = live_context.get("cluster_health_score", 100.0)
         throughput = live_context.get("throughput", 100000)
         s3_count = live_context.get("s3_count", 0)

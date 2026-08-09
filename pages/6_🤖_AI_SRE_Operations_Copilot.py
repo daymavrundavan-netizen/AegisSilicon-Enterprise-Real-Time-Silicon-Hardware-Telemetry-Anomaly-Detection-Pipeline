@@ -38,7 +38,7 @@ with chip1:
     if st.button("⚡ Diagnose Degraded Nodes"):
         q_text = "What is the status of degraded nodes and their SDC fault risks?"
         st.session_state.chat_history.append({"role": "user", "content": q_text})
-        rep = st.session_state.agent.generate_chat_response(q_text, {"total_nodes": 500, "degraded_nodes": 15})["response"]
+        rep = st.session_state.agent.generate_chat_response(q_text, {"total_nodes": 500, "degraded_nodes": [f"gpu-node-{i+1:03d}" for i in range(15)], "quarantined_nodes": ["gpu-node-001", "gpu-node-002"]})["response"]
         st.session_state.chat_history.append({"role": "assistant", "content": rep})
         st.rerun()
 
@@ -67,7 +67,7 @@ if user_prompt := st.chat_input("Ask SRE Copilot..."):
     with st.chat_message("user"):
         st.write(user_prompt)
 
-    live_ctx = {"total_nodes": 500, "degraded_nodes": 15, "quarantined_nodes": 2, "cluster_health_score": 94.0}
+    live_ctx = {"total_nodes": 500, "degraded_nodes": [f"gpu-node-{i+1:03d}" for i in range(15)], "quarantined_nodes": ["gpu-node-001", "gpu-node-002"], "cluster_health_score": 94.0}
     reply_txt = st.session_state.agent.generate_chat_response(user_prompt, live_ctx)["response"]
 
     st.session_state.chat_history.append({"role": "assistant", "content": reply_txt})
