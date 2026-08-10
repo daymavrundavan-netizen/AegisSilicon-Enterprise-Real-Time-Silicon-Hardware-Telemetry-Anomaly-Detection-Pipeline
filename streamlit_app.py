@@ -154,10 +154,12 @@ step_local_simulation()
 # Fetch Data
 if api_online:
     try:
-        overview = requests.get(f"{API_BASE}/api/v1/overview").json()
-        nodes_data = requests.get(f"{API_BASE}/api/v1/nodes").json()
-        history_data = requests.get(f"{API_BASE}/api/telemetry/history?limit=100").json()
-        s3_data = requests.get(f"{API_BASE}/api/v1/storage").json()
+        overview = requests.get(f"{API_BASE}/api/v1/overview", timeout=2.0).json()
+        nodes_data = requests.get(f"{API_BASE}/api/v1/nodes", timeout=2.0).json()
+        history_data = requests.get(f"{API_BASE}/api/telemetry/history?limit=100", timeout=2.0).json()
+        s3_data = requests.get(f"{API_BASE}/api/v1/storage", timeout=2.0).json()
+        if isinstance(nodes_data, list) and len(nodes_data) > 0:
+            st.session_state.node_statuses = {n["node_id"]: n["status"] for n in nodes_data}
     except Exception:
         api_online = False
 

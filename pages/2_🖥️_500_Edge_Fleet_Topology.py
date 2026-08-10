@@ -49,13 +49,37 @@ with col2:
 with col3:
     page_num = st.number_input("Page (12 nodes/page)", min_value=1, max_value=42, value=1)
 
+API_BASE = os.getenv("API_BASE", "http://backend:8000")
+if "API_BASE" in st.session_state:
+    API_BASE = st.session_state.API_BASE
+
+live_nodes_data = []
+try:
+    r = requests.get(f"{API_BASE}/api/v1/nodes", timeout=1.5)
+    if r.status_code == 200:
+        live_nodes_data = r.json()
+        if live_nodes_data:
+            st.session_state.node_statuses = {n["node_id"]: n["status"] for n in live_nodes_data}
+except Exception:
+    pass
+
 nodes_list = []
-for nid, status in st.session_state.node_statuses.items():
-    nodes_list.append({
-        "node_id": nid, "status": status,
-        "temperature": 74.2 if status=="DEGRADED" else 62.0,
-        "voltage": 1.15, "faults": 1 if status != "HEALTHY" else 0
-    })
+if live_nodes_data:
+    for n in live_nodes_data:
+        nodes_list.append({
+            "node_id": n["node_id"],
+            "status": n["status"],
+            "temperature": n.get("current_temperature", 62.0),
+            "voltage": n.get("current_voltage", 1.15),
+            "faults": n.get("sdc_fault_count", 0)
+        })
+else:
+    for nid, status in st.session_state.node_statuses.items():
+        nodes_list.append({
+            "node_id": nid, "status": status,
+            "temperature": 74.2 if status=="DEGRADED" else 62.0,
+            "voltage": 1.15, "faults": 1 if status != "HEALTHY" else 0
+        })
 
 filtered = nodes_list
 if search_q:

@@ -128,7 +128,15 @@ class SDCReActDiagnosticAgent:
         matched_runbooks = self.rag_kb.query_runbook(user_query, top_k=1)
         runbook = matched_runbooks[0] if matched_runbooks else None
 
-        if any(w in query_clean for w in ["health", "score", "status", "overview"]):
+        if runbook and any(w in query_clean for w in ["runbook", "fix", "remediat", "symptom", "mantissa", "exponent", "mercurial", "aging", "drift", "bit", "flip", "error", "action", "how", "solve", "help", "diagnos"]):
+            res = f"📖 **RAG Vector Knowledge Base Match**: [{runbook['id']}] **{runbook['title']}**\n\n" \
+                  f"• **Fault Category**: {runbook['fault_category']}\n" \
+                  f"• **Root Cause**: {runbook['root_cause']}\n" \
+                  f"• **Remediation Track**: `{runbook['remediation_track']}`\n\n" \
+                  f"**Recommended Action Protocol**:\n" + "\n".join([f"  {idx+1}. {step}" for idx, step in enumerate(runbook['action_steps'])])
+            return {"response": res, "intent": "RUNBOOK_QUERY"}
+
+        elif any(w in query_clean for w in ["health", "score", "status", "overview"]):
             res = f"📊 **Executive Infrastructure Health Report** ({now_str}):\n\n" \
                   f"• **Cluster Health Score**: `{health_score}%`\n" \
                   f"• **Total Active Nodes**: `{total_nodes}` GPU/CPU Nodes\n" \
@@ -176,7 +184,7 @@ class SDCReActDiagnosticAgent:
                   f"• **Fault Category**: {runbook['fault_category']}\n" \
                   f"• **Root Cause**: {runbook['root_cause']}\n" \
                   f"• **Remediation Track**: `{runbook['remediation_track']}`\n\n" \
-                  f"**Recommended Action Protocol**:\n" + "\n".join(runbook['action_steps'])
+                  f"**Recommended Action Protocol**:\n" + "\n".join([f"  {idx+1}. {step}" for idx, step in enumerate(runbook['action_steps'])])
             return {"response": res, "intent": "RUNBOOK_QUERY"}
 
         else:
