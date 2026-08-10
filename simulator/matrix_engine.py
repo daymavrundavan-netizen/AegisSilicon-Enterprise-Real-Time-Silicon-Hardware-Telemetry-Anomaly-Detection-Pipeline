@@ -58,7 +58,7 @@ class MatrixComputeEngine:
             idx = (random.randint(0, self.matrix_dim[0] - 1), random.randint(0, self.matrix_dim[1] - 1))
             orig_val = float(C_computed[idx])
             
-            # Degraded nodes tend to experience subtle mantissa flips or exponent bursts
+            # Degraded nodes experience random mantissa flips, exponent bursts, or sign flips
             region_weights = [0.80, 0.15, 0.05] if self.is_degrading else [0.70, 0.25, 0.05]
             region = random.choices(['mantissa', 'exponent', 'sign'], weights=region_weights)[0]
             
@@ -100,17 +100,20 @@ class MatrixComputeEngine:
 
 class FleetSimulator:
     """
-    Manages a fleet of simulated GPU compute nodes generating 100,000 telemetry records per second.
+    Manages a fleet of 500 simulated GPU compute nodes with dynamic random SDC fault generation.
     """
 
     def __init__(self, num_nodes: int = 500, num_corrupted_nodes: int = 15, target_records_per_sec: int = 100000):
         self.target_records_per_sec = target_records_per_sec
         self.num_nodes = num_nodes
         self.nodes = {}
+        
+        # Pick dynamic random nodes to corrupt across the 500-node compute fleet
+        corrupted_indices = set(random.sample(range(num_nodes), min(num_corrupted_nodes, num_nodes)))
+
         for i in range(num_nodes):
             node_id = f"gpu-node-{i+1:03d}"
-            # Mark designated nodes as degrading to simulate hardware wear
-            is_degraded = (i < num_corrupted_nodes)
+            is_degraded = i in corrupted_indices
             self.nodes[node_id] = MatrixComputeEngine(node_id, is_degrading=is_degraded)
 
     def set_node_quarantine(self, node_id: str, quarantined: bool):
@@ -120,6 +123,14 @@ class FleetSimulator:
 
     def generate_fleet_telemetry(self) -> list:
         """Collect one metric micro-batch aggregating 100,000 records/sec across all fleet nodes."""
+        # Randomly simulate organic thermal wear by occasionally triggering dynamic random degradation
+        if random.random() < 0.05:
+            random_node = random.choice(list(self.nodes.keys()))
+            # Degrade a random node if under 30 nodes are degrading
+            degrading_count = sum(1 for n in self.nodes.values() if n.is_degrading)
+            if degrading_count < 30:
+                self.nodes[random_node].is_degrading = True
+
         records_per_node = self.target_records_per_sec // self.num_nodes
         batch = []
         for engine in self.nodes.values():
@@ -127,4 +138,3 @@ class FleetSimulator:
             rec["records_count"] = records_per_node
             batch.append(rec)
         return batch
-

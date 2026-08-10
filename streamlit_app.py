@@ -90,7 +90,7 @@ if "fleet_sim" not in st.session_state:
     st.session_state.s3_mgr = AWSS3Manager()
     st.session_state.telemetry_history = []
     st.session_state.audit_logs = []
-    st.session_state.node_statuses = {f"gpu-node-{i+1:03d}": ("DEGRADED" if i < 15 else "HEALTHY") for i in range(500)}
+    st.session_state.node_statuses = {nid: ("DEGRADED" if engine.is_degrading else "HEALTHY") for nid, engine in st.session_state.fleet_sim.nodes.items()}
     st.session_state.selected_node_modal = None
     st.session_state.chat_history = [
         {"role": "assistant", "content": "👋 Hello! I am Aegis AI Operations Copilot powered by LangChain RAG. How can I assist you with your 500-node AI infrastructure today?"}

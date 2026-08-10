@@ -39,7 +39,7 @@ if "diag_modal" not in st.session_state:
 if "fleet_sim" not in st.session_state:
     st.session_state.fleet_sim = FleetSimulator(num_nodes=500, num_corrupted_nodes=15, target_records_per_sec=100000)
     st.session_state.agent = SDCReActDiagnosticAgent()
-    st.session_state.node_statuses = {f"gpu-node-{i+1:03d}": ("DEGRADED" if i < 15 else "HEALTHY") for i in range(500)}
+    st.session_state.node_statuses = {nid: ("DEGRADED" if engine.is_degrading else "HEALTHY") for nid, engine in st.session_state.fleet_sim.nodes.items()}
 
 col1, col2, col3 = st.columns([2, 1, 1])
 with col1:
