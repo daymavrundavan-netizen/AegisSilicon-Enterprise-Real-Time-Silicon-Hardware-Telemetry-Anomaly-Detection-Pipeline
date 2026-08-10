@@ -7,6 +7,10 @@ set -e
 
 echo "=== [AegisSilicon] Starting AWS EC2 Deployment Setup ==="
 
+# Force sync with latest remote main branch
+git fetch origin main 2>/dev/null || true
+git reset --hard origin/main 2>/dev/null || true
+
 # 1. Update system packages & install Docker
 echo "[1/4] Installing Docker & Docker Compose..."
 sudo dpkg -i --force-overwrite /var/cache/apt/archives/docker-compose-v2*.deb 2>/dev/null || true
