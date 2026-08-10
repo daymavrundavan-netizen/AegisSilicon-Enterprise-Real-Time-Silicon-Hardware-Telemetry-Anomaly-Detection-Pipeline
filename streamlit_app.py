@@ -497,7 +497,7 @@ elif selected_tab == "🤖 AI SRE Operations Copilot":
 # ================= MODULE 6: S3 DATA LAKE ARCHIVES =================
 elif selected_tab == "☁️ S3 Data Lake Archives":
     st.subheader("☁️ Amazon S3 Telemetry Micro-Batches & Diagnostic Landings")
-    st.caption("Partitioned Layout: `s3://aegissilicon-telemetry-archive/raw_telemetry/year=2026/month=08/...`")
+    st.caption("Partitioned Layout: `s3://aegissilicon-telemetry-archive-prod/raw_telemetry/year=2026/month=08/...`")
 
     if s3_data:
         df_s3 = pd.DataFrame(s3_data)

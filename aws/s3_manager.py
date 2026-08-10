@@ -14,7 +14,7 @@ class AWSS3Manager:
     """
 
     def __init__(self, bucket_name: str = None, region_name: str = None):
-        self.bucket_name = bucket_name or os.getenv("S3_BUCKET_NAME", "aegissilicon-telemetry-archive")
+        self.bucket_name = bucket_name or os.getenv("S3_BUCKET_NAME", "aegissilicon-telemetry-archive-prod")
         self.region_name = region_name or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
         self.s3_client = None
         self.local_archive_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scratch_s3_archive"))

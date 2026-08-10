@@ -164,7 +164,7 @@ class SDCReActDiagnosticAgent:
 
         elif any(w in query_clean for w in ["s3", "storage", "archive", "bucket"]):
             res = f"☁️ **Amazon S3 Telemetry Storage Audit**:\n\n" \
-                  f"• **Target Bucket**: `s3://aegissilicon-telemetry-archive`\n" \
+                  f"• **Target Bucket**: `s3://aegissilicon-telemetry-archive-prod`\n" \
                   f"• **Landed Micro-Batches**: `{s3_count}` S3 Json Partition Objects\n" \
                   f"• **Partitioning Key Layout**: `raw_telemetry/year=2026/month=07/day=31/hour=00/batch_*.json`\n" \
                   f"• **Retention Policy**: Continuous real-time landing with 90-day forensic archive."
