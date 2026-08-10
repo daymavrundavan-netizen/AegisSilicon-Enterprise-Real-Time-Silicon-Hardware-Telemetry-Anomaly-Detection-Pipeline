@@ -33,7 +33,7 @@ services:
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - AWS_DEFAULT_REGION=us-east-1
-      - S3_BUCKET_NAME=aegissilicon-telemetry-archive
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-aegissilicon-telemetry-archive-prod}
     depends_on:
       - kafka
 
@@ -48,6 +48,6 @@ services:
       - API_BASE=http://backend:8000
       - IN_DOCKER=true
       - AWS_DEFAULT_REGION=us-east-1
-      - S3_BUCKET_NAME=aegissilicon-telemetry-archive
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-aegissilicon-telemetry-archive-prod}
     depends_on:
       - backend

@@ -29,14 +29,14 @@ sudo ufw allow 8000/tcp 2>/dev/null || true
 sudo ufw allow 8501/tcp 2>/dev/null || true
 
 # 2. Configure AWS S3 Bucket for Telemetry Archiving
-AWS_REGION=${AWS_REGION:-"us-east-1"}
-S3_BUCKET_NAME=${S3_BUCKET_NAME:-"aegissilicon-telemetry-archive-$(date +%s)"}
+export AWS_DEFAULT_REGION=${AWS_REGION:-"us-east-1"}
+export S3_BUCKET_NAME=${S3_BUCKET_NAME:-"aegissilicon-telemetry-archive-prod"}
 
-echo "[2/4] Provisioning Amazon S3 Archive Bucket: ${S3_BUCKET_NAME} in region ${AWS_REGION}..."
+echo "[2/4] Provisioning Amazon S3 Archive Bucket: ${S3_BUCKET_NAME} in region ${AWS_DEFAULT_REGION}..."
 if aws s3api head-bucket --bucket "$S3_BUCKET_NAME" 2>/dev/null; then
     echo "Bucket ${S3_BUCKET_NAME} already exists."
 else
-    aws s3api create-bucket --bucket "$S3_BUCKET_NAME" --region "$AWS_REGION" || true
+    aws s3api create-bucket --bucket "$S3_BUCKET_NAME" --region "$AWS_DEFAULT_REGION" 2>/dev/null || true
     echo "Created S3 Bucket: ${S3_BUCKET_NAME}"
 fi
 
