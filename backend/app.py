@@ -546,19 +546,6 @@ def get_timescaledb_status():
     }
 
 
-@app.get("/api/v1/snowflake/export")
-def get_snowflake_export():
-    return {
-        "warehouse": "AEGIS_SILICON_ANALYTICS_WH",
-        "database": "SILICON_TELEMETRY_DB",
-        "schema": "RAW_STREAMING",
-        "table": "HISTORICAL_SDC_METRICS",
-        "total_records_archived": 12850000,
-        "compression_ratio": "4.2x (Parquet on S3)",
-        "last_sync_timestamp": time.time()
-    }
-
-
 @app.get("/api/v1/powerbi/export")
 def get_powerbi_export(db: Session = Depends(get_db)):
     nodes = db.query(NodeStatusModel).all()

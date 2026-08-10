@@ -1,6 +1,6 @@
 """
 AegisSilicon Enterprise Streamlit Operations & Anomaly Isolation Platform.
-Visualizes End-to-End Data Ingestion (100,000 rec/s across 500 edge nodes) -> SDC Fault Injection -> Isolation Forest ML -> Closed-Loop AI Anomaly Isolation -> TimescaleDB / Snowflake / Power BI.
+Visualizes End-to-End Data Ingestion (100,000 rec/s across 500 edge nodes) -> SDC Fault Injection -> Isolation Forest ML -> Closed-Loop AI Anomaly Isolation -> TimescaleDB / Power BI.
 """
 
 import os
