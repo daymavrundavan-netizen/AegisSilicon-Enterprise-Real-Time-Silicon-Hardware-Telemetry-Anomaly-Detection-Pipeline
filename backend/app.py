@@ -396,19 +396,38 @@ class InjectFaultRequest(BaseModel):
 def inject_node_fault(node_id: str, req: InjectFaultRequest):
     if node_id in fleet_sim.nodes:
         engine = fleet_sim.nodes[node_id]
-        engine.is_degrading = True
-        
+        engine.inject_forced_fault(req.fault_type)
+
         db = SessionLocal()
         try:
             node = db.query(NodeStatusModel).filter(NodeStatusModel.node_id == node_id).first()
             if node:
                 node.status = "DEGRADED"
+                node.sdc_fault_count += 1
                 db.commit()
+
+            alert = AnomalyAlertModel(
+                node_id=node_id,
+                timestamp=time.time(),
+                anomaly_risk_score=0.985,
+                is_sdc_risk=True,
+                feature_snapshot_json=json.dumps({
+                    "rolling_error_mean_3w": 0.048 if req.fault_type == "exponent" else 0.0038,
+                    "max_error_spike": 0.125 if req.fault_type == "exponent" else 0.024,
+                    "consecutive_error_streak": 4,
+                    "temperature_trend": 8.4,
+                    "voltage_instability": 0.025
+                }),
+                remediation_track="LOOP_B_NODE_QUARANTINE" if req.fault_type == "exponent" else "LOOP_A_DATA_SALVAGE",
+                status="AUTONOMOUS_QUARANTINED"
+            )
+            db.add(alert)
+            db.commit()
         finally:
             db.close()
 
         return {
-            "message": f"Injected IEEE-754 {req.fault_type} bit-flip into {node_id}.",
+            "message": f"Injected IEEE-754 {req.fault_type.upper()} bit-flip into {node_id}.",
             "node_id": node_id,
             "status": "DEGRADED"
         }

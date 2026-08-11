@@ -18,9 +18,15 @@ class MatrixComputeEngine:
         self.node_id = node_id
         self.is_degrading = is_degrading
         self.fault_probability = fault_probability
+        self.forced_fault_region = None
         self.matrix_dim = (64, 64)
         self.base_temperature = 62.0  # Celsius
         self.base_voltage = 1.15      # Volts
+
+    def inject_forced_fault(self, fault_type: str = "mantissa"):
+        """Force an immediate IEEE-754 bit-flip fault injection on the next computation batch."""
+        self.is_degrading = True
+        self.forced_fault_region = fault_type
 
     def run_batch(self) -> dict:
         """
@@ -51,16 +57,20 @@ class MatrixComputeEngine:
         has_fault = False
         fault_info = None
 
-        # Inject SDC if node is degrading or random cosmic ray hit occurs
-        should_inject = self.is_degrading and (random.random() < self.fault_probability or random.random() < 0.6)
+        # Inject SDC if node is degrading, forced fault is set, or random cosmic ray hit occurs
+        should_inject = self.forced_fault_region is not None or (self.is_degrading and (random.random() < self.fault_probability or random.random() < 0.6))
         if should_inject:
             # Pick a random element in C_computed to corrupt
             idx = (random.randint(0, self.matrix_dim[0] - 1), random.randint(0, self.matrix_dim[1] - 1))
             orig_val = float(C_computed[idx])
             
-            # Degraded nodes experience random mantissa flips, exponent bursts, or sign flips
-            region_weights = [0.80, 0.15, 0.05] if self.is_degrading else [0.70, 0.25, 0.05]
-            region = random.choices(['mantissa', 'exponent', 'sign'], weights=region_weights)[0]
+            # Select target bit-flip region
+            if self.forced_fault_region:
+                region = self.forced_fault_region
+                self.forced_fault_region = None
+            else:
+                region_weights = [0.80, 0.15, 0.05] if self.is_degrading else [0.70, 0.25, 0.05]
+                region = random.choices(['mantissa', 'exponent', 'sign'], weights=region_weights)[0]
             
             fault_info = IEEE754FaultInjector.inject_bit_flip(orig_val, target_region=region)
             
@@ -123,10 +133,8 @@ class FleetSimulator:
 
     def generate_fleet_telemetry(self) -> list:
         """Collect one metric micro-batch aggregating 100,000 records/sec across all fleet nodes."""
-        # Randomly simulate organic thermal wear by occasionally triggering dynamic random degradation
         if random.random() < 0.05:
             random_node = random.choice(list(self.nodes.keys()))
-            # Degrade a random node if under 30 nodes are degrading
             degrading_count = sum(1 for n in self.nodes.values() if n.is_degrading)
             if degrading_count < 30:
                 self.nodes[random_node].is_degrading = True
