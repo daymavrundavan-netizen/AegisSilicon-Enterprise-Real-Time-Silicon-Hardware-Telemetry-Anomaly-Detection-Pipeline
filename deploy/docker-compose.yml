@@ -3,6 +3,7 @@ version: '3.8'
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
+    restart: always
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -11,6 +12,7 @@ services:
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
+    restart: always
     depends_on:
       - zookeeper
     ports:
@@ -27,6 +29,8 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.backend
+    restart: always
+    command: ["gunicorn", "-w", "2", "-k", "uvicorn.workers.UvicornWorker", "backend.app:app", "--bind", "0.0.0.0:8000", "--timeout", "120"]
     ports:
       - "80:8000"
       - "8000:8000"
@@ -41,7 +45,8 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.backend
-    command: ["python", "-m", "streamlit", "run", "streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    restart: always
+    command: ["python", "-m", "streamlit", "run", "streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.enableCORS=false", "--server.enableXsrfProtection=false", "--browser.gatherUsageStats=false"]
     ports:
       - "8501:8501"
     environment:
