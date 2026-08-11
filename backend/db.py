@@ -101,9 +101,15 @@ def init_db():
     if "sqlite" in DATABASE_URL:
         with engine.connect() as conn:
             from sqlalchemy import text
-            for col, col_type in [("power_watts", "FLOAT DEFAULT 320.0"), ("vram_used_gb", "FLOAT DEFAULT 67.2"), ("gpu_utilization_pct", "FLOAT DEFAULT 85.0")]:
+            for table_name, col, col_type in [
+                ("node_status", "power_watts", "FLOAT DEFAULT 320.0"),
+                ("node_status", "vram_used_gb", "FLOAT DEFAULT 67.2"),
+                ("node_status", "gpu_utilization_pct", "FLOAT DEFAULT 85.0"),
+                ("telemetry_records", "operation", "VARCHAR DEFAULT 'MATRIX_DOT_PRODUCT_FP32'"),
+                ("telemetry_records", "active_workload", "VARCHAR DEFAULT 'LLM_ATTENTION_KEY_VALUE_PROJECTION'")
+            ]:
                 try:
-                    conn.execute(text(f"ALTER TABLE node_status ADD COLUMN {col} {col_type}"))
+                    conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col} {col_type}"))
                     conn.commit()
                 except Exception:
                     pass
