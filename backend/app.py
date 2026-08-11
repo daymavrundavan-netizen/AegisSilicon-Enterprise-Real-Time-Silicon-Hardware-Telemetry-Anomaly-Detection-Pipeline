@@ -73,6 +73,7 @@ s3_manager = AWSS3Manager()
 
 autonomous_ai_actions: List[dict] = []
 latest_telemetry_cache: List[dict] = []
+in_memory_nodes_cache: Dict[str, dict] = {}
 event_loop_ref = None
 
 class ConnectionManager:
@@ -102,14 +103,30 @@ def run_background_pipeline():
     while True:
         db = SessionLocal()
         try:
+            # Seed initial in-memory node status cache
             for node_id in fleet_sim.nodes.keys():
+                is_deg = fleet_sim.nodes[node_id].is_degrading
                 node_record = db.query(NodeStatusModel).filter(NodeStatusModel.node_id == node_id).first()
                 if not node_record:
-                    db.add(NodeStatusModel(
+                    node_record = NodeStatusModel(
                         node_id=node_id,
-                        status="DEGRADED" if fleet_sim.nodes[node_id].is_degrading else "HEALTHY",
+                        status="DEGRADED" if is_deg else "HEALTHY",
                         last_seen=time.time()
-                    ))
+                    )
+                    db.add(node_record)
+                
+                in_memory_nodes_cache[node_id] = {
+                    "node_id": node_id,
+                    "status": node_record.status,
+                    "last_seen": node_record.last_seen,
+                    "total_batches": node_record.total_batches,
+                    "sdc_fault_count": node_record.sdc_fault_count,
+                    "current_temperature": node_record.current_temperature,
+                    "current_voltage": node_record.current_voltage,
+                    "power_watts": node_record.power_watts,
+                    "vram_used_gb": node_record.vram_used_gb,
+                    "gpu_utilization_pct": node_record.gpu_utilization_pct
+                }
             db.commit()
 
             s3_flush_timer = time.time()
@@ -125,28 +142,28 @@ def run_background_pipeline():
                         if len(latest_telemetry_cache) > 400:
                             latest_telemetry_cache.pop(0)
 
-                        t_model = TelemetryRecordModel(
-                            node_id=rec["node_id"],
-                            timestamp=rec["timestamp"],
-                            operation=rec.get("operation", "MATRIX_DOT_PRODUCT_FP32"),
-                            active_workload=rec.get("active_workload", "LLM_ATTENTION_KEY_VALUE_PROJECTION"),
-                            expected_norm=rec["expected_norm"],
-                            computed_norm=rec["computed_norm"],
-                            relative_error=rec["relative_error"],
-                            has_fault=rec["has_fault_injected"],
-                            fault_region=rec["fault_details"]["fault_region"] if rec.get("fault_details") else None,
-                            temperature_c=rec["temperature_c"],
-                            voltage_v=rec["voltage_v"]
-                        )
-                        db.add(t_model)
-
-                    db.commit()
+                        if rec["has_fault_injected"] or rec["relative_error"] > 1e-5:
+                            t_model = TelemetryRecordModel(
+                                node_id=rec["node_id"],
+                                timestamp=rec["timestamp"],
+                                operation=rec.get("operation", "MATRIX_DOT_PRODUCT_FP32"),
+                                active_workload=rec.get("active_workload", "LLM_ATTENTION_KEY_VALUE_PROJECTION"),
+                                expected_norm=rec["expected_norm"],
+                                computed_norm=rec["computed_norm"],
+                                relative_error=rec["relative_error"],
+                                has_fault=rec["has_fault_injected"],
+                                fault_region=rec["fault_details"]["fault_region"] if rec.get("fault_details") else None,
+                                temperature_c=rec["temperature_c"],
+                                voltage_v=rec["voltage_v"]
+                            )
+                            db.add(t_model)
 
                     if now - s3_flush_timer >= 4.0:
                         s3_manager.archive_telemetry_batch(raw_batch)
                         s3_flush_timer = now
 
                     flushed_windows = window_processor.process_and_flush_windows()
+                    anomalies_in_tick = 0
 
                     for window in flushed_windows:
                         node_id = window["node_id"]
@@ -161,6 +178,7 @@ def run_background_pipeline():
                             node_status.current_voltage = window["mean_voltage"]
 
                             if anom_result["is_sdc_risk"] and node_status.status != "QUARANTINED":
+                                anomalies_in_tick += 1
                                 report = agent.generate_diagnostic_report({
                                     "node_id": node_id,
                                     "anomaly_risk_score": anom_result["anomaly_risk_score"],
@@ -197,16 +215,19 @@ def run_background_pipeline():
                                 if len(autonomous_ai_actions) > 50:
                                     autonomous_ai_actions.pop(0)
 
-                                if event_loop_ref and ws_manager.active_connections:
-                                    ws_payload = {
-                                        "type": "AUTONOMOUS_AI_SANDBOX_ACTION",
-                                        "timestamp": now,
-                                        "data": auto_action,
-                                        "report": report
-                                    }
-                                    asyncio.run_coroutine_threadsafe(ws_manager.broadcast(ws_payload), event_loop_ref)
-
-                            db.commit()
+                            # Update in-memory node status cache
+                            in_memory_nodes_cache[node_id] = {
+                                "node_id": node_id,
+                                "status": node_status.status,
+                                "last_seen": node_status.last_seen,
+                                "total_batches": node_status.total_batches,
+                                "sdc_fault_count": node_status.sdc_fault_count,
+                                "current_temperature": node_status.current_temperature,
+                                "current_voltage": node_status.current_voltage,
+                                "power_watts": node_status.power_watts,
+                                "vram_used_gb": node_status.vram_used_gb,
+                                "gpu_utilization_pct": node_status.gpu_utilization_pct
+                            }
 
                         if anom_result["is_sdc_risk"]:
                             alert = AnomalyAlertModel(
@@ -219,16 +240,19 @@ def run_background_pipeline():
                                 status="AUTONOMOUS_QUARANTINED"
                             )
                             db.add(alert)
-                            db.commit()
 
-                        if event_loop_ref and ws_manager.active_connections:
-                            ws_payload = {
-                                "type": "WINDOW_ANOMALY_UPDATE",
-                                "timestamp": now,
-                                "data": anom_result,
-                                "node_status": node_status.status if node_status else "HEALTHY"
-                            }
-                            asyncio.run_coroutine_threadsafe(ws_manager.broadcast(ws_payload), event_loop_ref)
+                    # Single consolidated batch commit per tick
+                    db.commit()
+
+                    # Single consolidated WebSocket broadcast per tick
+                    if event_loop_ref and ws_manager.active_connections:
+                        ws_payload = {
+                            "type": "FLEET_STREAM_TICK",
+                            "timestamp": now,
+                            "anomalies_detected": anomalies_in_tick,
+                            "active_nodes": 500
+                        }
+                        asyncio.run_coroutine_threadsafe(ws_manager.broadcast(ws_payload), event_loop_ref)
 
                 except Exception as tick_err:
                     print(f"[Pipeline Tick Error] {tick_err}")
@@ -237,7 +261,7 @@ def run_background_pipeline():
                     except Exception:
                         pass
                 
-                time.sleep(1.0)
+                time.sleep(1.5)
         except Exception as e:
             print(f"[Background Pipeline Error] {e}")
         finally:
@@ -264,57 +288,34 @@ def startup_event():
 @app.get("/api/v1/overview")
 @app.get("/api/fleet/summary")
 def get_executive_overview():
-    db = SessionLocal()
-    try:
-        nodes = db.query(NodeStatusModel).all()
-        total_nodes = len(nodes)
-        healthy = sum(1 for n in nodes if n.status == "HEALTHY")
-        degraded = sum(1 for n in nodes if n.status == "DEGRADED")
-        quarantined = sum(1 for n in nodes if n.status == "QUARANTINED")
-        total_batches = sum(n.total_batches for n in nodes)
-        total_sdc_faults = sum(n.sdc_fault_count for n in nodes)
+    nodes = list(in_memory_nodes_cache.values())
+    total_nodes = len(nodes)
+    healthy = sum(1 for n in nodes if n["status"] == "HEALTHY")
+    degraded = sum(1 for n in nodes if n["status"] == "DEGRADED")
+    quarantined = sum(1 for n in nodes if n["status"] == "QUARANTINED")
+    total_batches = sum(n["total_batches"] for n in nodes)
+    total_sdc_faults = sum(n["sdc_fault_count"] for n in nodes)
 
-        cluster_health_score = round(max(0.0, 100.0 - (degraded * 25.0 + quarantined * 12.5)), 1)
+    cluster_health_score = round(max(0.0, 100.0 - (degraded * 25.0 + quarantined * 12.5)), 1)
 
-        return {
-            "total_nodes": total_nodes,
-            "healthy_nodes": healthy,
-            "degraded_nodes": degraded,
-            "quarantined_nodes": quarantined,
-            "cluster_health_score": cluster_health_score,
-            "total_records_processed": total_batches * 6250,
-            "sdc_detected_count": total_sdc_faults,
-            "system_status": "CRITICAL_SDC_DETECTED" if degraded > 0 else ("AUTONOMOUS_SANDBOX_ACTIVE" if quarantined > 0 else "NOMINAL"),
-            "cluster_throughput_rec_sec": 100000,
-            "ollama_active": agent.ollama_client.is_available
-        }
-    finally:
-        db.close()
+    return {
+        "total_nodes": total_nodes,
+        "healthy_nodes": healthy,
+        "degraded_nodes": degraded,
+        "quarantined_nodes": quarantined,
+        "cluster_health_score": cluster_health_score,
+        "total_records_processed": total_batches * 6250,
+        "sdc_detected_count": total_sdc_faults,
+        "system_status": "CRITICAL_SDC_DETECTED" if degraded > 0 else ("AUTONOMOUS_SANDBOX_ACTIVE" if quarantined > 0 else "NOMINAL"),
+        "cluster_throughput_rec_sec": 100000,
+        "ollama_active": agent.ollama_client.is_available
+    }
 
 
 @app.get("/api/v1/nodes")
 @app.get("/api/fleet/nodes")
 def get_node_telemetry():
-    db = SessionLocal()
-    try:
-        nodes = db.query(NodeStatusModel).all()
-        result = []
-        for n in nodes:
-            result.append({
-                "node_id": n.node_id,
-                "status": n.status,
-                "last_seen": n.last_seen,
-                "total_batches": n.total_batches,
-                "sdc_fault_count": n.sdc_fault_count,
-                "current_temperature": n.current_temperature,
-                "current_voltage": n.current_voltage,
-                "power_watts": n.power_watts,
-                "vram_used_gb": n.vram_used_gb,
-                "gpu_utilization_pct": n.gpu_utilization_pct
-            })
-        return result
-    finally:
-        db.close()
+    return list(in_memory_nodes_cache.values())
 
 
 @app.get("/api/v1/services")
@@ -406,6 +407,10 @@ def inject_node_fault(node_id: str, req: InjectFaultRequest):
                 node.sdc_fault_count += 1
                 db.commit()
 
+            if node_id in in_memory_nodes_cache:
+                in_memory_nodes_cache[node_id]["status"] = "DEGRADED"
+                in_memory_nodes_cache[node_id]["sdc_fault_count"] += 1
+
             alert = AnomalyAlertModel(
                 node_id=node_id,
                 timestamp=time.time(),
@@ -447,6 +452,9 @@ def toggle_quarantine(node_id: str, req: QuarantineRequest):
 
         node.status = "QUARANTINED" if req.quarantine else "HEALTHY"
         db.commit()
+
+        if node_id in in_memory_nodes_cache:
+            in_memory_nodes_cache[node_id]["status"] = node.status
 
         fleet_sim.set_node_quarantine(node_id, req.quarantine)
         return {"node_id": node_id, "new_status": node.status}
